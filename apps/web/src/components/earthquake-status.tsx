@@ -2,7 +2,6 @@ import type { ApiError } from "@earthquake/earthquakes/types/api";
 import { Alert, AlertDescription, AlertTitle } from "@earthquake/ui/alert";
 import { Button } from "@earthquake/ui/button";
 import { Skeleton } from "@earthquake/ui/skeleton";
-import { TriangleAlertIcon } from "lucide-react";
 import Link from "next/link";
 import type { JSX } from "react";
 

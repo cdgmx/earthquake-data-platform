@@ -149,3 +149,5 @@ Thumbs.db
 .specify/*
 AGENTS.md
 specs/*
+.github/*
+.envrc

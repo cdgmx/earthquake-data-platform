@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { EARTHQUAKE_MAX_ITEMS } from "@earthquake/earthquakes/config";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchEarthquakesApiResponse } from "../../src/app/api/earthquakes/route";
-import { EARTHQUAKE_MAX_ITEMS } from "@earthquake/earthquakes/config";
 
 const fixturePath = join(__dirname, "__fixtures__", "usgs-all-week.json");
 

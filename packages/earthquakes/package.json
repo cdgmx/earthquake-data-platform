@@ -13,6 +13,7 @@
 	},
 	"scripts": {
 		"lint": "biome check --write .",
+		"tsc:check": "tsc --noEmit",
 		"clean": "rm -rf .turbo node_modules"
 	},
 	"dependencies": {

@@ -18,6 +18,9 @@
 		},
 		"format": {
 			"cache": false
+		},
+		"tsc:check": {
+			"dependsOn": ["^tsc:check"]
 		}
 	}
 }
