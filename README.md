@@ -64,6 +64,112 @@ pnpm coverage    # Generate test coverage reports
 pnpm clean       # Remove build artifacts and node_modules
 \`\`\`
 
+```mermaid
+C4Context
+title Earthquake Data Platform — System Context (MVP with Admin SPA)
+
+%% Left-to-right for stable layout
+Person(admin, "Admin", "Views data/analytics; runs dev tools")
+System(spa, "Admin Dashboard (Next.js on Vercel)", "Admin-only UI for data, analytics, throttling sims")
+System_Ext(usgs, "USGS FDSN Event API", "Earthquake catalog (GeoJSON)")
+
+System_Boundary(sys, "Earthquake Data Platform") {
+  System(api, "Earthquake Data API", "Stores, queries, analyzes earthquakes; logs requests")
+}
+
+Rel(admin, spa, "Operate dashboard", "HTTPS")
+Rel(spa, api, "Call REST endpoints", "HTTPS / JSON")
+Rel(api, usgs, "Fetch recent (orderby=time, limit=...)", "HTTP GET")
+
+UpdateElementStyle(admin, $bgColor="#1565C0", $borderColor="#0D47A1", $fontColor="#FFFFFF")
+UpdateElementStyle(spa,  $bgColor="#2E7D32", $borderColor="#1B5E20", $fontColor="#FFFFFF")
+UpdateElementStyle(api,  $bgColor="#388E3C", $borderColor="#1B5E20", $fontColor="#FFFFFF")
+UpdateElementStyle(usgs, $bgColor="#C62828", $borderColor="#8E0000", $fontColor="#FFFFFF")
+
+```
+
+```mermaid
+C4Container
+title Earthquake Data Platform — Container Diagram (REST, Admin SPA)
+
+UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
+
+Person(admin, "Admin", "Operates dashboard")
+
+System(spa, "Admin Dashboard (Next.js on Vercel)", "Data/analytics/dev tools")
+
+System_Boundary(platform, "Earthquake Data Platform") {
+  Container(apigw, "API Gateway (REST API)", "Managed Gateway", "Routing; per-method & per-client throttling via usage plans; request validation; X-Ray")
+  Container(apiFn, "API Lambda", "AWS Lambda (TypeScript/Fastify)", "Business logic; filters; pagination (LEK tokens)")
+  ContainerDb(db, "DynamoDB (single table)", "NoSQL", "earthquake events + request logs; GSI1 time-ordered; TTL on logs")
+  Container(scheduler, "EventBridge Scheduler", "Managed Cron", "Triggers periodic ingestion")
+  Container(ingFn, "Ingestion Lambda", "AWS Lambda (TypeScript)", "FDSN fetch; idempotent upserts")
+  Container(obs, "CloudWatch Logs / X-Ray", "Observability", "Structured logs; traces; metrics")
+}
+
+System_Ext(usgs, "USGS FDSN Event API", "GeoJSON search")
+
+Rel(admin, spa, "Use", "HTTPS")
+Rel(spa, apigw, "Invoke endpoints", "HTTPS / JSON")
+Rel(apigw, apiFn, "Lambda proxy", "IAM")
+Rel(apiFn, db, "Query/Write items", "AWS SDK v3")
+Rel(apiFn, obs, "Logs/Traces")
+Rel(scheduler, ingFn, "Invoke on schedule", "Event")
+Rel(ingFn, usgs, "query?orderby=time&limit=...", "HTTP GET")
+Rel(ingFn, db, "Upsert events", "AWS SDK v3")
+Rel(apigw, obs, "Stage traces (X-Ray)")
+
+```
+```mermaid
+C4Component
+title Earthquake Data Platform — Component Diagram (REST, single table)
+
+Person(client, "Admin Dashboard / Tester", "Calls platform API via HTTPS")
+System_Ext(usgs, "USGS FDSN Event API", "GeoJSON")
+ContainerDb(dynamo, "DynamoDB (single table)", "NoSQL", "events + request_logs; TTL on logs; GSI1 time-ordered")
+Container(apigw, "API Gateway (REST)", "Gateway", "Usage plans; request validation; authorizers; X-Ray")
+Container(obs, "CloudWatch Logs / X-Ray", "Observability", "Structured logs; traces")
+Container(scheduler, "EventBridge Scheduler", "Managed Cron", "Triggers ingestion")
+
+Container_Boundary(apiB, "Earthquake Data API (Lambda + Fastify)") {
+  Container(apiFn, "API Function", "Lambda", "Executes handlers; reserved concurrency cap")
+  Component(router, "HTTP Router", "Fastify", "Endpoints & middleware")
+  Component(validator, "Zod / JSON Schema", "TypeScript", "App-level validation")
+  Component(mapper, "DTO Mapper", "TypeScript", "Response shaping")
+  Component(lek, "LEK Token Codec", "TypeScript", "Signs/encodes LastEvaluatedKey")
+  Component(qsvc, "QueryService", "TypeScript", "Composes DynamoDB queries/filters")
+  Component(analytics, "AnalyticsService", "TypeScript", "Aggregates request logs by day")
+  Component(eqRepo, "EarthquakeRepository", "AWS SDK v3", "Table + GSI access")
+  Component(logRepo, "RequestLogRepository", "AWS SDK v3", "Write logs with TTL")
+}
+
+Container_Boundary(ingB, "Ingestion (Lambda)") {
+  Container(ingFn, "Ingestion Function", "Lambda", "Runs on schedule and on demand")
+  Component(fdsn, "FDSNClient", "HTTP", "orderby=time&limit=n with backoff")
+  Component(parser, "GeoJSON Normalizer", "TypeScript", "Map to internal model")
+  Component(upsert, "UpsertService", "TypeScript", "Idempotent upserts by eventId")
+}
+
+Rel(client, apigw, "GET /earthquakes, GET /metrics, POST /ingest/recent", "HTTPS / JSON")
+Rel(apigw, apiFn, "Invoke (Lambda proxy)", "IAM; usage plan throttles")
+Rel(apigw, ingFn, "Invoke /ingest/recent", "JWT authorizer")
+Rel(apiFn, router, "Handle")
+Rel(router, validator, "Validate")
+Rel(router, qsvc, "Query earthquakes")
+Rel(router, analytics, "Query request analytics")
+Rel(qsvc, lek, "Encode/Decode")
+Rel(qsvc, eqRepo, "Read/Write")
+Rel(analytics, logRepo, "Read aggregates")
+Rel(apiFn, dynamo, "Query/Write")
+Rel(apiFn, obs, "Logs/Traces")
+
+Rel(scheduler, ingFn, "Invoke on schedule", "Event")
+Rel(ingFn, fdsn, "Fetch", "HTTP GET")
+Rel(ingFn, parser, "Parse/Normalize")
+Rel(parser, upsert, "Upserts")
+Rel(ingFn, dynamo, "Write")
+Rel(ingFn, obs, "Logs/Traces")
+```
 ## 📂 Workspace Packages
 
 ### Apps
