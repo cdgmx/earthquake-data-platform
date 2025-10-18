@@ -67,6 +67,12 @@ web_modules/
 .env.*
 !.env.example
 
+# CDK output
+cdk.out/
+
+# LocalStack state
+localstack/volume/
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache

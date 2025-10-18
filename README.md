@@ -47,7 +47,75 @@ pnpm build
 cd apps/web && pnpm build
 \`\`\`
 
-## 📝 Scripts
+## � LocalStack Pro Setup
+
+The infrastructure for this project uses LocalStack Pro to emulate AWS services locally. This enables:
+
+- **Local development** without AWS account
+- **Fast iteration** with instant deployments
+- **Cost-effective** testing of serverless applications
+- **Reproducible** infrastructure across team members
+
+### Prerequisites
+
+- Docker Desktop installed and running
+- LocalStack Pro auth token ([get one here](https://app.localstack.cloud))
+- Node.js 20 LTS and pnpm 10.18.2+
+
+### Quick Start (15 minutes)
+
+**Full instructions**: See [LocalStack CDK Quickstart](./specs/002-localstack-cdk-infra/quickstart.md)
+
+\`\`\`bash
+# 1. Set your LocalStack Pro token
+export LOCALSTACK_AUTH_TOKEN="your-token-here"
+
+# 2. Copy environment templates
+cp .env.example .env
+cp apps/infra/.env.example apps/infra/.env
+
+# 3. Start LocalStack
+pnpm local:up
+
+# 4. Bootstrap CDK environment (first time only)
+pnpm infra:bootstrap
+
+# 5. Deploy infrastructure
+pnpm infra:deploy
+
+# 6. Test the API (see quickstart.md for details)
+\`\`\`
+
+### Infrastructure Commands
+
+\`\`\`bash
+pnpm local:up           # Start LocalStack container
+pnpm local:down         # Stop LocalStack container
+pnpm infra:bootstrap    # Bootstrap CDK environment (once)
+pnpm infra:deploy       # Deploy infrastructure stack
+pnpm infra:diff         # Preview infrastructure changes
+pnpm infra:destroy      # Destroy infrastructure stack
+pnpm infra:synth        # Generate CloudFormation templates
+\`\`\`
+
+### What Gets Deployed
+
+- **Lambda Function** (Node.js 20.x): Hello Service handler
+- **API Gateway** (REST API): HTTP endpoint with API key authentication
+- **CloudWatch Logs**: Automatic logging for Lambda invocations
+- **Usage Plans**: Rate limiting and throttling configuration
+
+### Infrastructure as Code
+
+Infrastructure is defined in \`apps/infra/\` using:
+
+- **AWS CDK v2**: Infrastructure as TypeScript code
+- **cdklocal**: LocalStack-aware CDK wrapper
+- **NodejsFunction**: Automatic TypeScript bundling for Lambda
+
+See [apps/infra/README.md](./apps/infra/README.md) for detailed infrastructure documentation.
+
+## �📝 Scripts
 
 Available at the root level (runs across all packages via Turbo):
 
