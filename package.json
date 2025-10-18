@@ -20,7 +20,14 @@
 		"test:watch": "turbo run test:watch",
 		"test:ui": "turbo run test:ui",
 		"coverage": "turbo run coverage",
-		"clean": "turbo run clean && rm -rf node_modules"
+		"clean": "turbo run clean && rm -rf node_modules",
+		"local:up": "docker compose --profile localstack up -d",
+		"local:down": "docker compose --profile localstack down",
+		"infra:bootstrap": "cd apps/infra && cdklocal bootstrap",
+		"infra:deploy": "cd apps/infra && cdklocal deploy --all --require-approval never",
+		"infra:diff": "cd apps/infra && cdklocal diff",
+		"infra:destroy": "cd apps/infra && cdklocal destroy --all --force",
+		"infra:synth": "cd apps/infra && cdklocal synth"
 	},
 	"dependencies": {},
 	"devDependencies": {
