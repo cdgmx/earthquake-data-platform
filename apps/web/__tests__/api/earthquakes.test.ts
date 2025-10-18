@@ -9,8 +9,6 @@ const fixturePath = join(__dirname, "__fixtures__", "usgs-all-week.json");
 const loadFixture = () =>
 	JSON.parse(readFileSync(fixturePath, "utf-8")) as Record<string, unknown>;
 
-// Helper types/fixtures removed: tests use the App Router helper directly.
-
 describe("/api/earthquakes", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();

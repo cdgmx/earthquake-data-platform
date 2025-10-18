@@ -1,0 +1,17 @@
+{
+	"name": "@earthquake/hello-service",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "tsc",
+		"clean": "rm -rf dist .turbo",
+		"lint": "biome check --write ."
+	},
+	"dependencies": {},
+	"devDependencies": {
+		"@types/aws-lambda": "^8.10.145",
+		"@types/node": "^20.17.9",
+		"typescript": "^5.7.2"
+	}
+}
