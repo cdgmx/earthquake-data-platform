@@ -2,6 +2,7 @@
 import "dotenv/config";
 import * as cdk from "aws-cdk-lib";
 import { ApiGatewayStack } from "../lib/stacks/api-gateway-stack.js";
+import { IngestStack } from "../lib/stacks/ingest-stack.js";
 
 const app = new cdk.App();
 
@@ -29,4 +30,11 @@ new ApiGatewayStack(app, "ApiGatewayStack", {
 		region,
 	},
 	enableUsagePlan,
+});
+
+new IngestStack(app, "IngestStack", {
+	env: {
+		account,
+		region,
+	},
 });
