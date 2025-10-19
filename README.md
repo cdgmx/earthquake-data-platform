@@ -7,11 +7,15 @@ A Turborepo-powered monorepo for earthquake monitoring and visualization with Ne
 \`\`\`
 earthquake-monorepo/
 ├── apps/
+│   ├── infra/            # AWS CDK stacks targeting LocalStack
 │   └── web/              # Next.js 15 earthquake monitoring app
 ├── packages/
+│   ├── earthquakes/      # Domain logic, API clients, schemas
+│   ├── schemas/          # Shared schema definitions
+│   ├── services/         # Lambda services (hello-service, ingest-recent-service)
 │   ├── ui/               # Shared UI components (shadcn/ui based)
-│   ├── utils/            # Shared utility functions
-│   └── earthquakes/      # Earthquake domain logic, API clients, schemas
+│   └── utils/            # Shared utility helpers and structured logging
+├── specs/                # Feature specifications and runbooks
 ├── turbo.json            # Turborepo pipeline configuration
 ├── pnpm-workspace.yaml   # pnpm workspace configuration
 └── package.json          # Root workspace manifest
@@ -47,7 +51,7 @@ pnpm build
 cd apps/web && pnpm build
 \`\`\`
 
-## � LocalStack Pro Setup
+## 🌐 LocalStack Pro Setup
 
 The infrastructure for this project uses LocalStack Pro to emulate AWS services locally. This enables:
 
@@ -70,9 +74,8 @@ The infrastructure for this project uses LocalStack Pro to emulate AWS services 
 # 1. Set your LocalStack Pro token
 export LOCALSTACK_AUTH_TOKEN="your-token-here"
 
-# 2. Copy environment templates
-cp .env.example .env
-cp apps/infra/.env.example apps/infra/.env
+# 2. Verify apps/infra/.env targets LocalStack (http://localhost:4566)
+#    (repo ships with defaults; adjust if needed)
 
 # 3. Start LocalStack
 pnpm local:up
@@ -101,9 +104,9 @@ pnpm infra:synth        # Generate CloudFormation templates
 ### What Gets Deployed
 
 - **Lambda Function** (Node.js 20.x): Hello Service handler
-- **API Gateway** (REST API): HTTP endpoint with API key authentication
+- **API Gateway** (REST API): HTTP endpoint (optional usage plan/API key via `ENABLE_USAGE_PLAN`)
 - **CloudWatch Logs**: Automatic logging for Lambda invocations
-- **Usage Plans**: Rate limiting and throttling configuration
+- **Usage Plans**: Available when enabled for API key testing
 
 ### Infrastructure as Code
 
@@ -113,9 +116,9 @@ Infrastructure is defined in \`apps/infra/\` using:
 - **cdklocal**: LocalStack-aware CDK wrapper
 - **NodejsFunction**: Automatic TypeScript bundling for Lambda
 
-See [apps/infra/README.md](./apps/infra/README.md) for detailed infrastructure documentation.
+See [specs/002-localstack-cdk-infra/quickstart.md](./specs/002-localstack-cdk-infra/quickstart.md) for detailed infrastructure documentation.
 
-## �📝 Scripts
+## 📝 Scripts
 
 Available at the root level (runs across all packages via Turbo):
 
