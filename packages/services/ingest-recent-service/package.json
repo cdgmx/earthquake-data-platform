@@ -1,0 +1,32 @@
+{
+	"name": "@earthquake/ingest-recent-service",
+	"version": "1.0.0",
+	"private": true,
+	"type": "module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"scripts": {
+		"build": "tsc",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"coverage": "vitest run --coverage",
+		"lint": "biome check --write .",
+		"tsc:check": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@aws-sdk/client-dynamodb": "^3.654.0",
+		"@aws-sdk/lib-dynamodb": "^3.654.0",
+		"@aws-sdk/util-dynamodb": "^3.654.0",
+		"@earthquake/schemas": "workspace:*",
+		"@earthquake/utils": "workspace:*",
+		"zod": "^4.1.12"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.2.6",
+		"@types/aws-lambda": "^8.10.145",
+		"@types/node": "^20.16.11",
+		"@vitest/coverage-v8": "^2.1.4",
+		"typescript": "^5.6.3",
+		"vitest": "^2.1.4"
+	}
+}
