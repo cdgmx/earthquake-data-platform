@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
-import { calculateFingerprint, log } from "@earthquake/utils";
+import { log } from "@earthquake/utils";
 import type {
 	APIGatewayProxyEvent,
 	APIGatewayProxyResult,
@@ -36,9 +36,6 @@ export async function handler(
 	try {
 		const { data: usgsResponse, retries } =
 			await fetchRecentEarthquakes(USGS_API_URL);
-
-		const rawResponse = JSON.stringify(usgsResponse);
-		const fingerprint = calculateFingerprint(rawResponse);
 
 		const events = usgsResponse.features.map(normalizeEarthquakeEvent);
 
@@ -87,8 +84,6 @@ export async function handler(
 			upserted,
 			skipped,
 			retries,
-			upstreamSize: fingerprint.size,
-			upstreamHash: fingerprint.hash,
 		};
 
 		log({
@@ -100,7 +95,6 @@ export async function handler(
 			status: 200,
 			latencyMs,
 			summary,
-			upstreamFingerprint: fingerprint,
 		});
 
 		await createIngestRequestLog({
@@ -158,8 +152,6 @@ export async function handler(
 			upserted: 0,
 			skipped: 0,
 			retries: 0,
-			upstreamSize: 0,
-			upstreamHash: "",
 		};
 
 		log({

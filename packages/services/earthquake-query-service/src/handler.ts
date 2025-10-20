@@ -10,14 +10,14 @@ import { createRepository } from "./repository.js";
 import type { ErrorResponse, QueryResponse } from "./schemas.js";
 import { type ValidatedQueryParams, validateQueryParams } from "./validator.js";
 
-const dynamoClient = new DynamoDBClient();
-const docClient = DynamoDBDocumentClient.from(dynamoClient);
-const tableName = env.TABLE_NAME;
+const CLIENT = new DynamoDBClient();
+const DOC_CLIENT = DynamoDBDocumentClient.from(CLIENT);
+const TABLE_NAME = env.TABLE_NAME;
 const nextTokenSecret = env.NEXT_TOKEN_SECRET;
 
 const repository = createRepository({
-	docClient,
-	tableName,
+	docClient: DOC_CLIENT,
+	tableName: TABLE_NAME,
 });
 
 const queryService = createQueryService({

@@ -54,8 +54,6 @@ export const buildIngestRequestLog = (
 		upserted: params.upserted,
 		skipped: params.skipped,
 		retries: params.retries,
-		upstreamSize: params.upstreamSize,
-		upstreamHash: params.upstreamHash,
 	});
 };
 

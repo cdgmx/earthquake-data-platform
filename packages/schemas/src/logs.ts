@@ -44,8 +44,6 @@ export const IngestRequestLogSchema = BaseRequestLogSchema.extend({
 	upserted: z.number().int().nonnegative(),
 	skipped: z.number().int().nonnegative(),
 	retries: z.number().int().nonnegative(),
-	upstreamSize: z.number().int().nonnegative().optional(),
-	upstreamHash: z.string().optional(),
 });
 
 export const IngestRequestLogItemSchema = IngestRequestLogSchema.extend(
