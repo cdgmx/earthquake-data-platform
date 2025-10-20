@@ -10,9 +10,16 @@ export type DynamoDocClient = ReturnType<typeof DynamoDBDocumentClient.from>;
 export function createDocClient(options?: {
 	client?: DynamoDBClient;
 }): DynamoDocClient {
-	const client =
-		options?.client ??
-		new DynamoDBClient({ region: process.env.AWS_REGION || "us-east-1" });
+	if (options?.client) {
+		return DynamoDBDocumentClient.from(options.client);
+	}
+
+	const region = process.env.AWS_REGION;
+	if (!region) {
+		throw new Error("AWS_REGION environment variable is required");
+	}
+
+	const client = new DynamoDBClient({ region });
 	return DynamoDBDocumentClient.from(client);
 }
 

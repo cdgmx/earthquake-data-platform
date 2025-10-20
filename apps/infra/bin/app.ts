@@ -2,20 +2,18 @@
 import "dotenv/config";
 import * as cdk from "aws-cdk-lib";
 import { ApiGatewayStack } from "../lib/stacks/api-gateway-stack.js";
-import { IngestStack } from "../lib/stacks/ingest-stack.js";
+import { EarthquakeDataStack } from "../lib/stacks/earthquake-data-stack.js";
 
 const app = new cdk.App();
 
-let account = "000000000000";
-const accountFromEnv = process.env.CDK_DEFAULT_ACCOUNT;
-if (accountFromEnv !== undefined && accountFromEnv !== "") {
-	account = accountFromEnv;
+const account = process.env.CDK_DEFAULT_ACCOUNT;
+if (!account) {
+	throw new Error("CDK_DEFAULT_ACCOUNT environment variable is required");
 }
 
-let region = "us-east-1";
-const regionFromEnv = process.env.CDK_DEFAULT_REGION;
-if (regionFromEnv !== undefined && regionFromEnv !== "") {
-	region = regionFromEnv;
+const region = process.env.CDK_DEFAULT_REGION;
+if (!region) {
+	throw new Error("CDK_DEFAULT_REGION environment variable is required");
 }
 
 let enableUsagePlan = false;
@@ -32,7 +30,7 @@ new ApiGatewayStack(app, "ApiGatewayStack", {
 	enableUsagePlan,
 });
 
-new IngestStack(app, "IngestStack", {
+new EarthquakeDataStack(app, "EarthquakeDataStack", {
 	env: {
 		account,
 		region,
