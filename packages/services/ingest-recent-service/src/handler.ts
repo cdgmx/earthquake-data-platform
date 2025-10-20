@@ -1,14 +1,22 @@
 import { randomUUID } from "node:crypto";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { calculateFingerprint, log } from "@earthquake/utils";
 import type {
 	APIGatewayProxyEvent,
 	APIGatewayProxyResult,
 	Context,
 } from "aws-lambda";
+import { env } from "./env.js";
 import { normalizeEarthquakeEvent } from "./normalizer.js";
 import { createIngestRequestLog, insertEvent } from "./repository.js";
 import type { ErrorResponse } from "./schemas.js";
 import { fetchRecentEarthquakes } from "./usgs-client.js";
+
+const CLIENT = new DynamoDBClient();
+const DOC_CLIENT = DynamoDBDocumentClient.from(CLIENT);
+const TABLE_NAME = env.TABLE_NAME;
+const USGS_API_URL = env.USGS_API_URL;
 
 export async function handler(
 	_event: APIGatewayProxyEvent,
@@ -26,7 +34,8 @@ export async function handler(
 	});
 
 	try {
-		const { data: usgsResponse, retries } = await fetchRecentEarthquakes();
+		const { data: usgsResponse, retries } =
+			await fetchRecentEarthquakes(USGS_API_URL);
 
 		const rawResponse = JSON.stringify(usgsResponse);
 		const fingerprint = calculateFingerprint(rawResponse);
@@ -38,7 +47,11 @@ export async function handler(
 
 		for (const earthquakeEvent of events) {
 			try {
-				const result = await insertEvent(earthquakeEvent);
+				const result = await insertEvent({
+					event: earthquakeEvent,
+					docClient: DOC_CLIENT,
+					tableName: TABLE_NAME,
+				});
 				if (result === "inserted") {
 					upserted++;
 				} else {
@@ -64,6 +77,20 @@ export async function handler(
 			retries,
 		};
 
+		const requestLogInput = {
+			requestId,
+			timestamp: startTime,
+			route: "/ingest/recent",
+			status: 200,
+			latencyMs,
+			fetched: events.length,
+			upserted,
+			skipped,
+			retries,
+			upstreamSize: fingerprint.size,
+			upstreamHash: fingerprint.hash,
+		};
+
 		log({
 			level: "INFO",
 			timestamp: Date.now(),
@@ -77,17 +104,9 @@ export async function handler(
 		});
 
 		await createIngestRequestLog({
-			requestId,
-			timestamp: startTime,
-			route: "/ingest/recent",
-			status: 200,
-			latencyMs,
-			fetched: events.length,
-			upserted,
-			skipped,
-			retries,
-			upstreamSize: fingerprint.size,
-			upstreamHash: fingerprint.hash,
+			logInput: requestLogInput,
+			docClient: DOC_CLIENT,
+			tableName: TABLE_NAME,
 		});
 
 		return {
@@ -128,6 +147,21 @@ export async function handler(
 			errorCode = "INFRASTRUCTURE_NOT_READY";
 		}
 
+		const requestLogInput = {
+			requestId,
+			timestamp: startTime,
+			route: "/ingest/recent",
+			status: statusCode,
+			latencyMs,
+			error: errorCode,
+			fetched: 0,
+			upserted: 0,
+			skipped: 0,
+			retries: 0,
+			upstreamSize: 0,
+			upstreamHash: "",
+		};
+
 		log({
 			level: "ERROR",
 			timestamp: Date.now(),
@@ -138,30 +172,12 @@ export async function handler(
 			latencyMs,
 			error: errorCode,
 		});
-		try {
-			await createIngestRequestLog({
-				requestId,
-				timestamp: startTime,
-				route: "/ingest/recent",
-				status: statusCode,
-				latencyMs,
-				error: errorCode,
-				fetched: 0,
-				upserted: 0,
-				skipped: 0,
-				retries: 0,
-				upstreamSize: 0,
-				upstreamHash: "",
-			});
-		} catch (logError) {
-			log({
-				level: "ERROR",
-				timestamp: Date.now(),
-				requestId,
-				message: `Failed to create request log: ${logError instanceof Error ? logError.message : String(logError)}`,
-				route: "/ingest/recent",
-			});
-		}
+
+		await createIngestRequestLog({
+			logInput: requestLogInput,
+			docClient: DOC_CLIENT,
+			tableName: TABLE_NAME,
+		});
 
 		const errorResponse: ErrorResponse = {
 			error: errorCode,

@@ -1,8 +1,5 @@
 import { type USGSResponse, USGSResponseSchema } from "./schemas.js";
 
-const USGS_API_URL =
-	"https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&orderby=time&limit=100";
-
 const MAX_RETRIES = 3;
 const BASE_DELAYS = [1000, 2000, 4000];
 
@@ -16,7 +13,7 @@ async function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function fetchRecentEarthquakes(): Promise<{
+export async function fetchRecentEarthquakes(usgsApiUrl: string): Promise<{
 	data: USGSResponse;
 	retries: number;
 }> {
@@ -25,7 +22,7 @@ export async function fetchRecentEarthquakes(): Promise<{
 
 	for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
 		try {
-			const response = await fetch(USGS_API_URL);
+			const response = await fetch(usgsApiUrl);
 
 			if (!response.ok) {
 				if (response.status >= 500 || response.status === 429) {

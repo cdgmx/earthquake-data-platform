@@ -92,7 +92,7 @@ export function validateQueryParams(
 				starttime,
 				endtime,
 				parsed.minmagnitude,
-				parsed.pageSize || 50,
+				parsed.pageSize,
 			);
 		} catch (error) {
 			throw new Error(

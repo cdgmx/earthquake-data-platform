@@ -1,3 +1,4 @@
+import type { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 process.env.AWS_REGION = "us-east-1";
@@ -41,9 +42,12 @@ describe("ingest-repository", () => {
 		vi.clearAllMocks();
 	});
 
-	it("uses DynamoDBDocumentClient.from when inserting an event", async () => {
+	it("calls putIfNotExists with correct parameters when inserting an event", async () => {
 		const { insertEvent } = await import("../repository.js");
 
+		const mockDocClient = {
+			send: sendMock,
+		} as unknown as DynamoDBDocumentClient;
 		const event = {
 			pk: "EVENT#us6000abcd",
 			sk: "EVENT",
@@ -62,54 +66,74 @@ describe("ingest-repository", () => {
 			ingestedAt: 1729353600100,
 		};
 
-		const result = await insertEvent(event);
+		const result = await insertEvent({
+			event,
+			docClient: mockDocClient,
+			tableName: "earthquake-events",
+		});
 
 		expect(result).toBe("inserted");
-		expect(documentClientFromMock).toHaveBeenCalledTimes(1);
-		expect(putIfNotExistsMock).toHaveBeenCalledWith(
-			expect.objectContaining({ send: sendMock }),
-			{
-				TableName: "earthquake-events",
-				Item: event,
-				pkAttribute: "pk",
-			},
-		);
+		expect(putIfNotExistsMock).toHaveBeenCalledWith(mockDocClient, {
+			TableName: "earthquake-events",
+			Item: event,
+			pkAttribute: "pk",
+		});
 	});
 
 	it("delegates log writes to putItem", async () => {
 		const { createIngestRequestLog } = await import("../repository.js");
 
-		const logEntry = {
-			entity: "LOG",
+		const mockDocClient = {
+			send: sendMock,
+		} as unknown as DynamoDBDocumentClient;
+		const logInput = {
 			requestId: "550e8400-e29b-41d4-a716-446655440000",
 			timestamp: 1729360000123,
 			route: "/ingest/recent",
-			logType: "INGEST",
 			status: 200,
 			latencyMs: 2847,
 			fetched: 100,
 			upserted: 100,
 			skipped: 0,
 			retries: 0,
-			ttl: 1729964800,
 		};
 
-		await createIngestRequestLog(logEntry);
+		await createIngestRequestLog({
+			logInput,
+			docClient: mockDocClient,
+			tableName: "earthquake-logs",
+		});
 
-		expect(documentClientFromMock).toHaveBeenCalledTimes(1);
-		expect(putItemMock).toHaveBeenCalledWith(
-			expect.objectContaining({ send: sendMock }),
-			{
-				TableName: "earthquake-logs",
-				Item: logEntry,
-			},
-		);
+		expect(putItemMock).toHaveBeenCalledWith(mockDocClient, {
+			TableName: "earthquake-logs",
+			Item: expect.objectContaining({
+				pk: "LOG#20241019",
+				sk: expect.stringContaining("1729360000123#"),
+				gsi1pk: "LOG#20241019",
+				gsi1sk: 1729360000123,
+				entity: "LOG",
+				requestId: logInput.requestId,
+				timestamp: logInput.timestamp,
+				route: logInput.route,
+				status: logInput.status,
+				latencyMs: logInput.latencyMs,
+				fetched: logInput.fetched,
+				upserted: logInput.upserted,
+				skipped: logInput.skipped,
+				retries: logInput.retries,
+				ttl: expect.any(Number),
+				logType: "INGEST",
+			}),
+		});
 	});
 
 	it("returns skipped when putIfNotExists resolves as skipped", async () => {
 		putIfNotExistsMock.mockResolvedValueOnce("skipped");
 		const { insertEvent } = await import("../repository.js");
 
+		const mockDocClient = {
+			send: sendMock,
+		} as unknown as DynamoDBDocumentClient;
 		const event = {
 			pk: "EVENT#us6000abcd",
 			sk: "EVENT",
@@ -128,7 +152,11 @@ describe("ingest-repository", () => {
 			ingestedAt: 1729353600100,
 		};
 
-		const result = await insertEvent(event);
+		const result = await insertEvent({
+			event,
+			docClient: mockDocClient,
+			tableName: "earthquake-events",
+		});
 
 		expect(result).toBe("skipped");
 		expect(putIfNotExistsMock).toHaveBeenCalledTimes(1);

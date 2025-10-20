@@ -1,7 +1,10 @@
-import type { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { describe, expect, it, vi } from "vitest";
-import { executeQuery, getDayBuckets } from "../query-service.js";
-import type { CursorPayload, EarthquakeItem } from "../schemas.js";
+import { createQueryService, getDayBuckets } from "../query-service.js";
+import type {
+	QueryDayBucketParams,
+	QueryDayBucketResult,
+} from "../repository.js";
+import type { CursorPayload, EarthquakeEvent } from "../schemas.js";
 
 describe("query-service", () => {
 	describe("getDayBuckets", () => {
@@ -61,16 +64,20 @@ describe("query-service", () => {
 	});
 
 	describe("executeQuery pagination", () => {
-		const mockClient = {} as DynamoDBClient;
-		const tableName = "test-table";
+		function createServiceWithMock() {
+			const queryDayBucket =
+				vi.fn<
+					(params: QueryDayBucketParams) => Promise<QueryDayBucketResult>
+				>();
+			const service = createQueryService({
+				repository: { queryDayBucket },
+			});
+			return { service, queryDayBucket };
+		}
 
 		it("should generate nextToken when page size reached before all buckets scanned", async () => {
-			const _queryDayBucket = await import("../repository.js").then(
-				(m) => m.queryDayBucket,
-			);
-			const spy = vi.spyOn(await import("../repository.js"), "queryDayBucket");
-
-			const mockItem1: EarthquakeItem = {
+			const { service, queryDayBucket } = createServiceWithMock();
+			const mockItem1: EarthquakeEvent = {
 				eventId: "evt1",
 				eventTsMs: 1729036800000,
 				mag: 3.0,
@@ -78,16 +85,17 @@ describe("query-service", () => {
 				lat: 35.0,
 				lon: -118.0,
 				depth: 10,
+				entity: "EVENT",
+				dayBucket: "20251016",
+				source: "USGS",
+				ingestedAt: 1729036800000,
 			};
-
-			spy.mockResolvedValue({
+			queryDayBucket.mockResolvedValue({
 				items: [mockItem1],
 				lastEvaluatedKey: undefined,
 			});
 
-			const result = await executeQuery({
-				client: mockClient,
-				tableName,
+			const result = await service.executeQuery({
 				starttime: 1729036800000,
 				endtime: 1729296000000,
 				minmagnitude: 2.0,
@@ -102,14 +110,11 @@ describe("query-service", () => {
 			expect(result.nextCursor?.mm).toBe(2.0);
 			expect(result.nextCursor?.ps).toBe(1);
 			expect(result.nextCursor?.idx).toBeGreaterThanOrEqual(0);
-
-			spy.mockRestore();
 		});
 
 		it("should generate nextToken when DynamoDB returns LastEvaluatedKey", async () => {
-			const spy = vi.spyOn(await import("../repository.js"), "queryDayBucket");
-
-			const mockItems: EarthquakeItem[] = Array.from(
+			const { service, queryDayBucket } = createServiceWithMock();
+			const mockItems: EarthquakeEvent[] = Array.from(
 				{ length: 50 },
 				(_, i) => ({
 					eventId: `evt${i}`,
@@ -119,10 +124,14 @@ describe("query-service", () => {
 					lat: 35.0,
 					lon: -118.0,
 					depth: 10,
+					entity: "EVENT",
+					dayBucket: "20251016",
+					source: "USGS",
+					ingestedAt: 1729036800000 + i * 1000,
 				}),
 			);
 
-			spy.mockResolvedValue({
+			queryDayBucket.mockResolvedValue({
 				items: mockItems,
 				lastEvaluatedKey: {
 					pk: "EVENT#evt49",
@@ -132,9 +141,7 @@ describe("query-service", () => {
 				},
 			});
 
-			const result = await executeQuery({
-				client: mockClient,
-				tableName,
+			const result = await service.executeQuery({
 				starttime: 1729036800000,
 				endtime: 1729123200000,
 				minmagnitude: 2.0,
@@ -145,14 +152,11 @@ describe("query-service", () => {
 			expect(result.nextCursor).toBeDefined();
 			expect(result.nextCursor?.lek).toBeDefined();
 			expect(result.nextCursor?.lek?.pk).toBe("EVENT#evt49");
-
-			spy.mockRestore();
 		});
 
 		it("should omit nextToken on final page when all buckets exhausted", async () => {
-			const spy = vi.spyOn(await import("../repository.js"), "queryDayBucket");
-
-			const mockItem: EarthquakeItem = {
+			const { service, queryDayBucket } = createServiceWithMock();
+			const mockItem: EarthquakeEvent = {
 				eventId: "evt1",
 				eventTsMs: 1729036800000,
 				mag: 3.0,
@@ -160,16 +164,18 @@ describe("query-service", () => {
 				lat: 35.0,
 				lon: -118.0,
 				depth: 10,
+				entity: "EVENT",
+				dayBucket: "20251016",
+				source: "USGS",
+				ingestedAt: 1729036800000,
 			};
 
-			spy.mockResolvedValue({
+			queryDayBucket.mockResolvedValue({
 				items: [mockItem],
 				lastEvaluatedKey: undefined,
 			});
 
-			const result = await executeQuery({
-				client: mockClient,
-				tableName,
+			const result = await service.executeQuery({
 				starttime: 1729036800000,
 				endtime: 1729123200000,
 				minmagnitude: 2.0,
@@ -178,14 +184,11 @@ describe("query-service", () => {
 
 			expect(result.items.length).toBeLessThan(100);
 			expect(result.nextCursor).toBeUndefined();
-
-			spy.mockRestore();
 		});
 
 		it("should resume from cursor with bucket index", async () => {
-			const spy = vi.spyOn(await import("../repository.js"), "queryDayBucket");
-
-			const mockItem: EarthquakeItem = {
+			const { service, queryDayBucket } = createServiceWithMock();
+			const mockItem: EarthquakeEvent = {
 				eventId: "evt2",
 				eventTsMs: 1729123200000,
 				mag: 4.0,
@@ -193,9 +196,13 @@ describe("query-service", () => {
 				lat: 36.0,
 				lon: -119.0,
 				depth: 15,
+				entity: "EVENT",
+				dayBucket: "20251017",
+				source: "USGS",
+				ingestedAt: 1729123200000,
 			};
 
-			spy.mockResolvedValue({
+			queryDayBucket.mockResolvedValue({
 				items: [mockItem],
 				lastEvaluatedKey: undefined,
 			});
@@ -210,26 +217,22 @@ describe("query-service", () => {
 				idx: 1,
 			};
 
-			const _result = await executeQuery({
-				client: mockClient,
-				tableName,
+			await service.executeQuery({
 				starttime: 1729036800000,
 				endtime: 1729296000000,
 				minmagnitude: 2.0,
 				pageSize: 50,
 				cursor,
 			});
-			expect(spy).toHaveBeenCalled();
-			const firstCallArgs = spy.mock.calls[0][0];
-			expect(firstCallArgs.dayBucket).toBe("20251017");
 
-			spy.mockRestore();
+			expect(queryDayBucket).toHaveBeenCalled();
+			const firstCallArgs = queryDayBucket.mock.calls[0][0];
+			expect(firstCallArgs.dayBucket).toBe("20251017");
 		});
 
 		it("should resume from cursor with LastEvaluatedKey", async () => {
-			const spy = vi.spyOn(await import("../repository.js"), "queryDayBucket");
-
-			const mockItem: EarthquakeItem = {
+			const { service, queryDayBucket } = createServiceWithMock();
+			const mockItem: EarthquakeEvent = {
 				eventId: "evt51",
 				eventTsMs: 1729123250000,
 				mag: 4.5,
@@ -237,9 +240,13 @@ describe("query-service", () => {
 				lat: 37.0,
 				lon: -120.0,
 				depth: 20,
+				entity: "EVENT",
+				dayBucket: "20251016",
+				source: "USGS",
+				ingestedAt: 1729123250000,
 			};
 
-			spy.mockResolvedValue({
+			queryDayBucket.mockResolvedValue({
 				items: [mockItem],
 				lastEvaluatedKey: undefined,
 			});
@@ -260,20 +267,17 @@ describe("query-service", () => {
 				},
 			};
 
-			const _result = await executeQuery({
-				client: mockClient,
-				tableName,
+			await service.executeQuery({
 				starttime: 1729036800000,
 				endtime: 1729296000000,
 				minmagnitude: 2.0,
 				pageSize: 50,
 				cursor,
 			});
-			expect(spy).toHaveBeenCalled();
-			const firstCallArgs = spy.mock.calls[0][0];
-			expect(firstCallArgs.exclusiveStartKey).toEqual(cursor.lek);
 
-			spy.mockRestore();
+			expect(queryDayBucket).toHaveBeenCalled();
+			const firstCallArgs = queryDayBucket.mock.calls[0][0];
+			expect(firstCallArgs.exclusiveStartKey).toEqual(cursor.lek);
 		});
 	});
 });

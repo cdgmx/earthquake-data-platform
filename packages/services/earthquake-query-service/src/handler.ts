@@ -1,11 +1,28 @@
 import { randomUUID } from "node:crypto";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { log } from "@earthquake/utils";
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { decodeCursor, encodeCursor } from "./cursor-codec.js";
-import { executeQuery } from "./query-service.js";
-import { createQueryRequestLog } from "./repository.js";
+import { env } from "./env.js";
+import { createQueryService } from "./query-service.js";
+import { createRepository } from "./repository.js";
 import type { ErrorResponse, QueryResponse } from "./schemas.js";
 import { type ValidatedQueryParams, validateQueryParams } from "./validator.js";
+
+const dynamoClient = new DynamoDBClient();
+const docClient = DynamoDBDocumentClient.from(dynamoClient);
+const tableName = env.TABLE_NAME;
+const nextTokenSecret = env.NEXT_TOKEN_SECRET;
+
+const repository = createRepository({
+	docClient,
+	tableName,
+});
+
+const queryService = createQueryService({
+	repository,
+});
 
 export async function handler(
 	event: APIGatewayProxyEvent,
@@ -14,33 +31,6 @@ export async function handler(
 	const startTime = Date.now();
 
 	try {
-		const tableName = process.env.TABLE_NAME;
-		const nextTokenSecret = process.env.NEXT_TOKEN_SECRET;
-
-		if (!tableName) {
-			const error: ErrorResponse = {
-				error: "INFRASTRUCTURE_NOT_READY",
-				message: "TABLE_NAME environment variable not set",
-			};
-			return {
-				statusCode: 503,
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(error),
-			};
-		}
-
-		if (!nextTokenSecret) {
-			const error: ErrorResponse = {
-				error: "INFRASTRUCTURE_NOT_READY",
-				message: "NEXT_TOKEN_SECRET environment variable not set",
-			};
-			return {
-				statusCode: 503,
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(error),
-			};
-		}
-
 		const rawParams = event.queryStringParameters || {};
 
 		// If nextToken is provided, restore parameters from cursor
@@ -133,7 +123,7 @@ export async function handler(
 			};
 		}
 
-		const result = await executeQuery({
+		const result = await queryService.executeQuery({
 			starttime: validatedParams.starttime,
 			endtime: validatedParams.endtime,
 			minmagnitude: validatedParams.minmagnitude,
@@ -150,7 +140,7 @@ export async function handler(
 
 		const latencyMs = Date.now() - startTime;
 
-		await createQueryRequestLog({
+		await repository.createQueryRequestLog({
 			starttime: validatedParams.starttime,
 			endtime: validatedParams.endtime,
 			minmagnitude: validatedParams.minmagnitude,
