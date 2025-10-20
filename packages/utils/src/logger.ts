@@ -7,64 +7,92 @@ export interface LogFingerprint {
 	hash: string;
 }
 
-const MAX_LOG_SIZE_BYTES = 8 * 1024;
-
-export type StructuredLogMessage =
-	| string
-	| number
-	| boolean
-	| null
-	| Record<string, unknown>;
-
-export type StructuredLogEvent<
-	TFields extends Record<string, unknown> = Record<string, unknown>,
-> = {
-	level: LogLevel;
-	timestamp: number;
-	message: StructuredLogMessage;
-	requestId?: string;
-	route?: string;
-	status?: number;
-	latencyMs?: number;
-	error?: string;
-	upstreamFingerprint?: LogFingerprint;
-} & TFields & {
-		_truncated?: boolean;
-	};
-
-export function log<TFields extends Record<string, unknown>>(
-	event: StructuredLogEvent<TFields>,
-): void {
-	const serialized = JSON.stringify(event);
-
-	if (serialized.length > MAX_LOG_SIZE_BYTES) {
-		let truncatedMessage = event.message;
-		if (typeof event.message === "string") {
-			const overflowBytes = serialized.length - MAX_LOG_SIZE_BYTES;
-			const safeLength = Math.max(
-				0,
-				event.message.length - overflowBytes - 100,
-			);
-			truncatedMessage = event.message.slice(0, safeLength);
-		}
-
-		const truncated: StructuredLogEvent<TFields> = {
-			...event,
-			_truncated: true,
-			message: truncatedMessage,
-		};
-		const truncatedSerialized = JSON.stringify(truncated);
-		console.log(truncatedSerialized.slice(0, MAX_LOG_SIZE_BYTES));
-		return;
-	}
-
-	console.log(serialized);
-}
-
 export function calculateFingerprint(data: string): LogFingerprint {
 	const hash = crypto.createHash("sha256").update(data).digest("hex");
 	return {
 		size: Buffer.byteLength(data, "utf8"),
 		hash,
+	};
+}
+
+export interface LoggerConfig {
+	service: string;
+	defaultFields?: Record<string, unknown>;
+	redactKeys?: string[];
+}
+
+export interface Logger {
+	info(message: string, fields?: Record<string, unknown>): void;
+	warn(message: string, fields?: Record<string, unknown>): void;
+	error(message: string, fields?: Record<string, unknown>): void;
+	withCorrelationId(correlationId: string): Logger;
+}
+
+function redactSensitiveFields(
+	fields: Record<string, unknown>,
+	redactKeys: string[],
+): Record<string, unknown> {
+	if (redactKeys.length === 0) {
+		return fields;
+	}
+
+	const redacted: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(fields)) {
+		redacted[key] = redactKeys.includes(key) ? "[REDACTED]" : value;
+	}
+	return redacted;
+}
+
+export function createLogger(
+	config: LoggerConfig,
+	correlationId?: string,
+): Logger {
+	const { service, defaultFields = {}, redactKeys = [] } = config;
+
+	const logWithLevel = (
+		level: LogLevel,
+		message: string,
+		fields?: Record<string, unknown>,
+	): void => {
+		const combinedFields = {
+			...defaultFields,
+			...(fields || {}),
+		};
+
+		const redactedFields = redactSensitiveFields(combinedFields, redactKeys);
+
+		const event = {
+			level,
+			timestamp: Date.now(),
+			message,
+			service,
+			environment: process.env.NODE_ENV || "development",
+			...(correlationId ? { correlationId } : {}),
+			...redactedFields,
+		};
+
+		console.log(JSON.stringify(event));
+	};
+
+	return {
+		info(message: string, fields?: Record<string, unknown>): void {
+			logWithLevel("INFO", message, fields);
+		},
+		warn(message: string, fields?: Record<string, unknown>): void {
+			logWithLevel("WARN", message, fields);
+		},
+		error(message: string, fields?: Record<string, unknown>): void {
+			logWithLevel("ERROR", message, fields);
+		},
+		withCorrelationId(id: string): Logger {
+			return createLogger(
+				{
+					service,
+					defaultFields,
+					redactKeys,
+				},
+				id,
+			);
+		},
 	};
 }

@@ -1,0 +1,18 @@
+{
+	"name": "@earthquake/errors",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"test": "vitest run",
+		"test:watch": "vitest"
+	},
+	"devDependencies": {
+		"@types/node": "^20.17.12",
+		"typescript": "^5.7.3",
+		"vitest": "^2.1.8"
+	}
+}

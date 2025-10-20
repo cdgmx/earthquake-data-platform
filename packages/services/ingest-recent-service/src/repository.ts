@@ -1,5 +1,6 @@
 import type { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { putIfNotExists } from "@earthquake/dynamo-client";
+import { AppError, ERROR_CODES } from "@earthquake/errors";
 import {
 	buildIngestRequestLog,
 	type IngestRequestLogInput,
@@ -18,11 +19,21 @@ export async function insertEvent({
 	docClient,
 	tableName,
 }: InsertEventParams): Promise<"inserted" | "skipped"> {
-	return putIfNotExists(docClient, {
-		TableName: tableName,
-		Item: event,
-		pkAttribute: "pk",
-	});
+	try {
+		return await putIfNotExists(docClient, {
+			TableName: tableName,
+			Item: event,
+			pkAttribute: "pk",
+		});
+	} catch (error) {
+		throw new AppError({
+			code: ERROR_CODES.DATABASE_UNAVAILABLE,
+			message: "Failed to insert earthquake event",
+			httpStatus: 503,
+			cause: error,
+			metadata: { eventId: event.eventId },
+		});
+	}
 }
 
 interface CreateIngestRequestLogParams {
@@ -36,10 +47,20 @@ export async function createIngestRequestLog({
 	docClient,
 	tableName,
 }: CreateIngestRequestLogParams): Promise<void> {
-	const item = buildIngestRequestLog(logInput);
-	await writeRequestLog({
-		tableName: tableName,
-		item,
-		client: docClient,
-	});
+	try {
+		const item = buildIngestRequestLog(logInput);
+		await writeRequestLog({
+			tableName: tableName,
+			item,
+			client: docClient,
+		});
+	} catch (error) {
+		throw new AppError({
+			code: ERROR_CODES.DATABASE_UNAVAILABLE,
+			message: "Failed to create ingest request log",
+			httpStatus: 503,
+			cause: error,
+			metadata: { requestId: logInput.requestId },
+		});
+	}
 }
