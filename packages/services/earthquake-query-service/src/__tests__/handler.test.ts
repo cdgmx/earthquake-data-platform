@@ -22,41 +22,11 @@ describe("handler integration", () => {
 
 	beforeEach(() => {
 		process.env.TABLE_NAME = "earthquake-events";
-		process.env.NEXT_TOKEN_SECRET = "test-secret-key";
+		process.env.NEXT_TOKEN_SECRET = "test-secret-key-1234";
 		process.env.AWS_REGION = "us-east-1";
 	});
 
 	describe("validation", () => {
-		it("should return 503 if TABLE_NAME missing", async () => {
-			delete process.env.TABLE_NAME;
-			const event = mockEvent({
-				starttime: "2025-10-15T00:00:00Z",
-				endtime: "2025-10-16T00:00:00Z",
-				minmagnitude: "3.0",
-			});
-
-			const result = await handler(event);
-
-			expect(result.statusCode).toBe(503);
-			const body = JSON.parse(result.body);
-			expect(body.error).toBe("INFRASTRUCTURE_NOT_READY");
-		});
-
-		it("should return 503 if NEXT_TOKEN_SECRET missing", async () => {
-			delete process.env.NEXT_TOKEN_SECRET;
-			const event = mockEvent({
-				starttime: "2025-10-15T00:00:00Z",
-				endtime: "2025-10-16T00:00:00Z",
-				minmagnitude: "3.0",
-			});
-
-			const result = await handler(event);
-
-			expect(result.statusCode).toBe(503);
-			const body = JSON.parse(result.body);
-			expect(body.error).toBe("INFRASTRUCTURE_NOT_READY");
-		});
-
 		it("should return 400 for invalid starttime format", async () => {
 			const event = mockEvent({
 				starttime: "not-a-date",

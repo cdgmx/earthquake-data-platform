@@ -21,6 +21,7 @@
 		"@earthquake/utils": "workspace:*",
 		"@earthquake/observability": "workspace:*",
 		"@earthquake/dynamo-client": "workspace:*",
+		"@earthquake/env": "workspace:*",
 		"zod": "^4.1.12"
 	},
 	"devDependencies": {

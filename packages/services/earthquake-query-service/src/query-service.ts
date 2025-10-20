@@ -1,4 +1,4 @@
-import { queryDayBucket } from "./repository.js";
+import type { EarthquakeQueryRepository } from "./repository.js";
 import type { CursorPayload, EarthquakeEvent } from "./schemas.js";
 
 export function getDayBuckets(starttime: number, endtime: number): string[] {
@@ -38,98 +38,106 @@ export interface ExecuteQueryResult {
 	bucketsScanned: number;
 }
 
-export async function executeQuery(
-	params: ExecuteQueryParams,
-): Promise<ExecuteQueryResult> {
-	const { starttime, endtime, minmagnitude, pageSize, cursor } = params;
+export interface QueryService {
+	executeQuery(params: ExecuteQueryParams): Promise<ExecuteQueryResult>;
+}
 
-	const buckets = cursor?.buckets || getDayBuckets(starttime, endtime);
-	const startIdx = cursor?.idx || 0;
-	const items: EarthquakeEvent[] = [];
-	let bucketsScanned = 0;
+export function createQueryService({
+	repository,
+}: {
+	repository: Pick<EarthquakeQueryRepository, "queryDayBucket">;
+}): QueryService {
+	async function executeQuery(
+		params: ExecuteQueryParams,
+	): Promise<ExecuteQueryResult> {
+		const { starttime, endtime, minmagnitude, pageSize, cursor } = params;
 
-	for (let i = startIdx; i < buckets.length; i++) {
-		const dayBucket = buckets[i];
-		const exclusiveStartKey = i === startIdx ? cursor?.lek : undefined;
+		const buckets = cursor?.buckets || getDayBuckets(starttime, endtime);
+		const startIdx = cursor?.idx || 0;
+		const items: EarthquakeEvent[] = [];
+		let bucketsScanned = 0;
 
-		const result = await queryDayBucket({
-			dayBucket,
-			startMs: starttime,
-			endMs: endtime,
-			minMagnitude: minmagnitude,
-			limit: pageSize - items.length,
-			exclusiveStartKey,
-		});
+		for (let i = startIdx; i < buckets.length; i++) {
+			const dayBucket = buckets[i];
+			const exclusiveStartKey = i === startIdx ? cursor?.lek : undefined;
 
-		bucketsScanned++;
-		items.push(...result.items);
-
-		if (items.length >= pageSize) {
-			const nextCursor: CursorPayload = {
-				v: 1,
-				st: starttime,
-				et: endtime,
-				mm: minmagnitude,
-				ps: pageSize,
-				buckets,
-				idx: i,
-				lek: result.lastEvaluatedKey,
-			};
-
-			items.sort((a, b) => {
-				if (b.eventTsMs !== a.eventTsMs) {
-					return b.eventTsMs - a.eventTsMs;
-				}
-				return a.eventId.localeCompare(b.eventId);
+			const result = await repository.queryDayBucket({
+				dayBucket,
+				startMs: starttime,
+				endMs: endtime,
+				minMagnitude: minmagnitude,
+				limit: pageSize - items.length,
+				exclusiveStartKey,
 			});
 
-			return {
-				items: items.slice(0, pageSize),
-				nextCursor,
-				bucketsScanned,
-			};
+			bucketsScanned++;
+			items.push(...result.items);
+
+			if (items.length >= pageSize) {
+				const nextCursor: CursorPayload = {
+					v: 1,
+					st: starttime,
+					et: endtime,
+					mm: minmagnitude,
+					ps: pageSize,
+					buckets,
+					idx: i,
+					lek: result.lastEvaluatedKey,
+				};
+
+				sortItemsDescending(items);
+
+				return {
+					items: items.slice(0, pageSize),
+					nextCursor,
+					bucketsScanned,
+				};
+			}
+
+			if (!result.lastEvaluatedKey && i < buckets.length - 1) {
+				continue;
+			}
+
+			if (result.lastEvaluatedKey) {
+				const nextCursor: CursorPayload = {
+					v: 1,
+					st: starttime,
+					et: endtime,
+					mm: minmagnitude,
+					ps: pageSize,
+					buckets,
+					idx: i,
+					lek: result.lastEvaluatedKey,
+				};
+
+				sortItemsDescending(items);
+
+				return {
+					items: items.slice(0, pageSize),
+					nextCursor,
+					bucketsScanned,
+				};
+			}
 		}
 
-		if (!result.lastEvaluatedKey && i < buckets.length - 1) {
-			continue;
-		}
+		sortItemsDescending(items);
 
-		if (result.lastEvaluatedKey) {
-			const nextCursor: CursorPayload = {
-				v: 1,
-				st: starttime,
-				et: endtime,
-				mm: minmagnitude,
-				ps: pageSize,
-				buckets,
-				idx: i,
-				lek: result.lastEvaluatedKey,
-			};
-
-			items.sort((a, b) => {
-				if (b.eventTsMs !== a.eventTsMs) {
-					return b.eventTsMs - a.eventTsMs;
-				}
-				return a.eventId.localeCompare(b.eventId);
-			});
-
-			return {
-				items: items.slice(0, pageSize),
-				nextCursor,
-				bucketsScanned,
-			};
-		}
+		return {
+			items,
+			bucketsScanned,
+		};
 	}
 
+	return {
+		executeQuery,
+	};
+}
+
+function sortItemsDescending(items: EarthquakeEvent[]): void {
 	items.sort((a, b) => {
 		if (b.eventTsMs !== a.eventTsMs) {
 			return b.eventTsMs - a.eventTsMs;
 		}
 		return a.eventId.localeCompare(b.eventId);
 	});
-
-	return {
-		items,
-		bucketsScanned,
-	};
 }

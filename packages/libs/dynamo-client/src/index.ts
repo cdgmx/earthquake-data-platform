@@ -1,6 +1,5 @@
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import {
-	DynamoDBDocumentClient,
+	type DynamoDBDocumentClient,
 	PutCommand,
 	type PutCommandInput,
 	QueryCommand,
@@ -22,22 +21,6 @@ export interface QueryOptions {
 export interface QueryResult<T> {
 	items: T[];
 	lastEvaluatedKey?: Record<string, unknown>;
-}
-
-export function createDocClient(options?: {
-	client?: DynamoDBClient;
-}): DynamoDocClient {
-	if (options?.client) {
-		return DynamoDBDocumentClient.from(options.client);
-	}
-
-	const region = process.env.AWS_REGION;
-	if (!region) {
-		throw new Error("AWS_REGION environment variable is required");
-	}
-
-	const client = new DynamoDBClient({ region });
-	return DynamoDBDocumentClient.from(client);
 }
 
 export async function putIfNotExists<T extends object>(

@@ -45,7 +45,7 @@ describe("usgs-client", () => {
 						types: ",origin,phase-data,",
 						nst: null,
 						dmin: null,
-						rms: 0.89,
+						rms: 0.45,
 						gap: null,
 						magType: "mb",
 						type: "earthquake",
@@ -90,7 +90,7 @@ describe("usgs-client", () => {
 					},
 					geometry: {
 						type: "Point",
-						coordinates: [-122.419, 37.774, 8.3],
+						coordinates: [-122.456, 37.723, 8.2],
 					},
 					id: "us6000abce",
 				},
@@ -103,11 +103,11 @@ describe("usgs-client", () => {
 			json: async () => mockResponse,
 		} as Response);
 
-		const result = await fetchRecentEarthquakes();
+		const usgsUrl =
+			"https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&orderby=time&limit=100";
+		const result = await fetchRecentEarthquakes(usgsUrl);
 
-		expect(global.fetch).toHaveBeenCalledWith(
-			"https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&orderby=time&limit=100",
-		);
+		expect(global.fetch).toHaveBeenCalledWith(usgsUrl);
 		expect(result.data).toEqual(mockResponse);
 		expect(result.retries).toBe(0);
 	});
