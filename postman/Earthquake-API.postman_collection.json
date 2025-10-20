@@ -1,0 +1,777 @@
+{
+	"info": {
+		"_postman_id": "earthquake-api-collection",
+		"name": "Earthquake Data Platform API",
+		"description": "Collection for testing the Earthquake Data Platform API endpoints on LocalStack.\n\nIncludes:\n- Ingestion endpoint (POST /ingest/recent)\n- Query endpoint (GET /earthquakes) with filters and pagination\n\nPrerequisites:\n1. Run `pnpm local:up` to start LocalStack\n2. Run `pnpm infra:deploy` to deploy CDK stack\n3. Set {{baseUrl}} environment variable to your API Gateway URL",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Ingestion",
+			"item": [
+				{
+					"name": "Ingest Recent Earthquakes",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response has required fields', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('fetched');",
+									"    pm.expect(jsonData).to.have.property('upserted');",
+									"    pm.expect(jsonData).to.have.property('skipped');",
+									"    pm.expect(jsonData).to.have.property('retries');",
+									"});",
+									"",
+									"pm.test('Fetched count is 100', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.fetched).to.eql(100);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/ingest/recent",
+							"host": ["{{baseUrl}}"],
+							"path": ["ingest", "recent"]
+						},
+						"description": "Fetches the 100 most recent earthquakes from USGS and stores them in DynamoDB.\n\nIdempotent - running multiple times will skip duplicates."
+					},
+					"response": [
+						{
+							"name": "Success - First Run",
+							"originalRequest": {
+								"method": "POST",
+								"url": {
+									"raw": "{{baseUrl}}/ingest/recent",
+									"host": ["{{baseUrl}}"],
+									"path": ["ingest", "recent"]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"fetched\": 100,\n  \"upserted\": 100,\n  \"skipped\": 0,\n  \"retries\": 0\n}"
+						},
+						{
+							"name": "Success - Subsequent Run",
+							"originalRequest": {
+								"method": "POST",
+								"url": {
+									"raw": "{{baseUrl}}/ingest/recent",
+									"host": ["{{baseUrl}}"],
+									"path": ["ingest", "recent"]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"fetched\": 100,\n  \"upserted\": 15,\n  \"skipped\": 85,\n  \"retries\": 0\n}"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Query",
+			"item": [
+				{
+					"name": "Query Earthquakes - ISO-8601 Format",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response has items array', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('items');",
+									"    pm.expect(jsonData.items).to.be.an('array');",
+									"});",
+									"",
+									"pm.test('All events meet magnitude threshold', function () {",
+									"    const jsonData = pm.response.json();",
+									"    const minMag = parseFloat(pm.request.url.query.get('minmagnitude'));",
+									"    jsonData.items.forEach(item => {",
+									"        pm.expect(item.mag).to.be.at.least(minMag);",
+									"    });",
+									"});",
+									"",
+									"// Save nextToken for pagination",
+									"if (pm.response.json().nextToken) {",
+									"    pm.environment.set('nextToken', pm.response.json().nextToken);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/earthquakes?starttime=2025-10-12T00:00:00Z&endtime=2025-10-19T23:59:59Z&minmagnitude=3.0&pageSize=50",
+							"host": ["{{baseUrl}}"],
+							"path": ["earthquakes"],
+							"query": [
+								{
+									"key": "starttime",
+									"value": "2025-10-12T00:00:00Z",
+									"description": "Start of time window (ISO-8601)"
+								},
+								{
+									"key": "endtime",
+									"value": "2025-10-19T23:59:59Z",
+									"description": "End of time window (ISO-8601)"
+								},
+								{
+									"key": "minmagnitude",
+									"value": "3.0",
+									"description": "Minimum magnitude threshold"
+								},
+								{
+									"key": "pageSize",
+									"value": "50",
+									"description": "Results per page (1-100, default 50)"
+								}
+							]
+						},
+						"description": "Query earthquakes using ISO-8601 formatted timestamps.\n\nReturns events within time window with magnitude >= threshold."
+					},
+					"response": []
+				},
+				{
+					"name": "Query Earthquakes - Epoch Milliseconds",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Events are ordered newest first', function () {",
+									"    const jsonData = pm.response.json();",
+									"    if (jsonData.items.length > 1) {",
+									"        for (let i = 0; i < jsonData.items.length - 1; i++) {",
+									"            pm.expect(jsonData.items[i].eventTsMs).to.be.at.least(jsonData.items[i + 1].eventTsMs);",
+									"        }",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/earthquakes?starttime=1728691200000&endtime=1729382399000&minmagnitude=4.0&pageSize=25",
+							"host": ["{{baseUrl}}"],
+							"path": ["earthquakes"],
+							"query": [
+								{
+									"key": "starttime",
+									"value": "1728691200000",
+									"description": "Start of time window (epoch ms: 2025-10-12 00:00:00 UTC)"
+								},
+								{
+									"key": "endtime",
+									"value": "1729382399000",
+									"description": "End of time window (epoch ms: 2025-10-19 23:59:59 UTC)"
+								},
+								{
+									"key": "minmagnitude",
+									"value": "4.0",
+									"description": "Minimum magnitude threshold"
+								},
+								{
+									"key": "pageSize",
+									"value": "25",
+									"description": "Results per page"
+								}
+							]
+						},
+						"description": "Query earthquakes using Unix epoch millisecond timestamps.\n\nFunctionally identical to ISO-8601 format, accepts numeric timestamps."
+					},
+					"response": []
+				},
+				{
+					"name": "Query Earthquakes - Next Page (Pagination)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response contains items', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items).to.be.an('array');",
+									"});",
+									"",
+									"// Update nextToken for subsequent pages",
+									"if (pm.response.json().nextToken) {",
+									"    pm.environment.set('nextToken', pm.response.json().nextToken);",
+									"} else {",
+									"    console.log('Last page reached - no nextToken returned');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"if (!pm.environment.get('nextToken')) {",
+									"    console.warn('No nextToken found. Run \"Query Earthquakes\" request first to generate a cursor.');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/earthquakes?starttime=2025-10-12T00:00:00Z&endtime=2025-10-19T23:59:59Z&minmagnitude=3.0&pageSize=50&nextToken={{nextToken}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["earthquakes"],
+							"query": [
+								{
+									"key": "starttime",
+									"value": "2025-10-12T00:00:00Z",
+									"description": "Must match original query"
+								},
+								{
+									"key": "endtime",
+									"value": "2025-10-19T23:59:59Z",
+									"description": "Must match original query"
+								},
+								{
+									"key": "minmagnitude",
+									"value": "3.0",
+									"description": "Must match original query"
+								},
+								{
+									"key": "pageSize",
+									"value": "50",
+									"description": "Must match original query"
+								},
+								{
+									"key": "nextToken",
+									"value": "{{nextToken}}",
+									"description": "Cursor from previous response"
+								}
+							]
+						},
+						"description": "Retrieve the next page of results using the nextToken from the previous response.\n\n⚠️ All query parameters (starttime, endtime, minmagnitude, pageSize) must match the original request or you'll get a VALIDATION_ERROR.\n\nRun \"Query Earthquakes\" first to populate the {{nextToken}} variable."
+					},
+					"response": []
+				},
+				{
+					"name": "Query Earthquakes - Large Magnitude Only",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/earthquakes?starttime=2025-10-01T00:00:00Z&endtime=2025-10-19T23:59:59Z&minmagnitude=5.5&pageSize=100",
+							"host": ["{{baseUrl}}"],
+							"path": ["earthquakes"],
+							"query": [
+								{
+									"key": "starttime",
+									"value": "2025-10-01T00:00:00Z"
+								},
+								{
+									"key": "endtime",
+									"value": "2025-10-19T23:59:59Z"
+								},
+								{
+									"key": "minmagnitude",
+									"value": "5.5",
+									"description": "Only significant earthquakes"
+								},
+								{
+									"key": "pageSize",
+									"value": "100",
+									"description": "Maximum page size"
+								}
+							]
+						},
+						"description": "Filter for significant earthquakes (magnitude >= 5.5) with maximum page size."
+					},
+					"response": []
+				},
+				{
+					"name": "Query Earthquakes - Last 7 Days",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Calculate timestamps for last 7 days",
+									"const now = new Date();",
+									"const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));",
+									"",
+									"pm.environment.set('endtime', now.toISOString());",
+									"pm.environment.set('starttime', sevenDaysAgo.toISOString());",
+									"",
+									"console.log('Time range:', sevenDaysAgo.toISOString(), 'to', now.toISOString());"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/earthquakes?starttime={{starttime}}&endtime={{endtime}}&minmagnitude=2.5&pageSize=50",
+							"host": ["{{baseUrl}}"],
+							"path": ["earthquakes"],
+							"query": [
+								{
+									"key": "starttime",
+									"value": "{{starttime}}",
+									"description": "Auto-calculated: 7 days ago"
+								},
+								{
+									"key": "endtime",
+									"value": "{{endtime}}",
+									"description": "Auto-calculated: now"
+								},
+								{
+									"key": "minmagnitude",
+									"value": "2.5"
+								},
+								{
+									"key": "pageSize",
+									"value": "50"
+								}
+							]
+						},
+						"description": "Dynamic query for earthquakes in the last 7 days.\n\nPre-request script automatically calculates starttime and endtime."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Validation Tests",
+			"item": [
+				{
+					"name": "Invalid - Missing Required Parameter",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Error code is VALIDATION_ERROR', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.eql('VALIDATION_ERROR');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/earthquakes?starttime=2025-10-12T00:00:00Z&endtime=2025-10-19T23:59:59Z",
+							"host": ["{{baseUrl}}"],
+							"path": ["earthquakes"],
+							"query": [
+								{
+									"key": "starttime",
+									"value": "2025-10-12T00:00:00Z"
+								},
+								{
+									"key": "endtime",
+									"value": "2025-10-19T23:59:59Z"
+								}
+							]
+						},
+						"description": "Missing required 'minmagnitude' parameter. Should return 400."
+					},
+					"response": []
+				},
+				{
+					"name": "Invalid - Negative Magnitude",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Error is VALIDATION_ERROR', function () {",
+									"    pm.expect(pm.response.json().error).to.eql('VALIDATION_ERROR');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/earthquakes?starttime=2025-10-12T00:00:00Z&endtime=2025-10-19T23:59:59Z&minmagnitude=-5.0",
+							"host": ["{{baseUrl}}"],
+							"path": ["earthquakes"],
+							"query": [
+								{
+									"key": "starttime",
+									"value": "2025-10-12T00:00:00Z"
+								},
+								{
+									"key": "endtime",
+									"value": "2025-10-19T23:59:59Z"
+								},
+								{
+									"key": "minmagnitude",
+									"value": "-5.0",
+									"description": "Invalid: below minimum of -2.0"
+								}
+							]
+						},
+						"description": "Magnitude below allowed minimum (-2.0). Should return 400."
+					},
+					"response": []
+				},
+				{
+					"name": "Invalid - Page Size Exceeds Maximum",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Error message mentions pageSize', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message.toLowerCase()).to.include('pagesize');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/earthquakes?starttime=2025-10-12T00:00:00Z&endtime=2025-10-19T23:59:59Z&minmagnitude=3.0&pageSize=150",
+							"host": ["{{baseUrl}}"],
+							"path": ["earthquakes"],
+							"query": [
+								{
+									"key": "starttime",
+									"value": "2025-10-12T00:00:00Z"
+								},
+								{
+									"key": "endtime",
+									"value": "2025-10-19T23:59:59Z"
+								},
+								{
+									"key": "minmagnitude",
+									"value": "3.0"
+								},
+								{
+									"key": "pageSize",
+									"value": "150",
+									"description": "Invalid: exceeds maximum of 100"
+								}
+							]
+						},
+						"description": "Page size exceeds maximum (100). Should return 400."
+					},
+					"response": []
+				},
+				{
+					"name": "Invalid - Inverted Time Range",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Error mentions time range', function () {",
+									"    const message = pm.response.json().message.toLowerCase();",
+									"    pm.expect(message).to.satisfy(msg => ",
+									"        msg.includes('endtime') || msg.includes('starttime') || msg.includes('time'))",
+									"    );",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/earthquakes?starttime=2025-10-19T00:00:00Z&endtime=2025-10-12T00:00:00Z&minmagnitude=3.0",
+							"host": ["{{baseUrl}}"],
+							"path": ["earthquakes"],
+							"query": [
+								{
+									"key": "starttime",
+									"value": "2025-10-19T00:00:00Z",
+									"description": "After endtime (invalid)"
+								},
+								{
+									"key": "endtime",
+									"value": "2025-10-12T00:00:00Z",
+									"description": "Before starttime (invalid)"
+								},
+								{
+									"key": "minmagnitude",
+									"value": "3.0"
+								}
+							]
+						},
+						"description": "endtime is before starttime. Should return 400."
+					},
+					"response": []
+				},
+				{
+					"name": "Invalid - Tampered Next Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Error indicates invalid token', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.eql('VALIDATION_ERROR');",
+									"    pm.expect(jsonData.message.toLowerCase()).to.satisfy(msg => ",
+									"        msg.includes('token') || msg.includes('cursor') || msg.includes('signature')",
+									"    );",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/earthquakes?starttime=2025-10-12T00:00:00Z&endtime=2025-10-19T23:59:59Z&minmagnitude=3.0&nextToken=TAMPERED_TOKEN_12345",
+							"host": ["{{baseUrl}}"],
+							"path": ["earthquakes"],
+							"query": [
+								{
+									"key": "starttime",
+									"value": "2025-10-12T00:00:00Z"
+								},
+								{
+									"key": "endtime",
+									"value": "2025-10-19T23:59:59Z"
+								},
+								{
+									"key": "minmagnitude",
+									"value": "3.0"
+								},
+								{
+									"key": "nextToken",
+									"value": "TAMPERED_TOKEN_12345",
+									"description": "Invalid/tampered token"
+								}
+							]
+						},
+						"description": "Tampered or invalid nextToken. Should return 400 with signature verification error."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Observability",
+			"item": [
+				{
+					"name": "Query Request Logs (Table PK)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Logs query uses base table keys', function () {",
+									"    const requestBody = JSON.parse(pm.request.body.raw);",
+									"    pm.expect(requestBody.KeyConditionExpression).to.eql('pk = :pk');",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"if (!body.Items || body.Items.length === 0) {",
+									"    console.warn('No log items returned. Ensure a recent query ran or adjust {{logPartition}}.');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/x-amz-json-1.0"
+							},
+							{
+								"key": "X-Amz-Target",
+								"value": "DynamoDB_20120810.Query"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"TableName\": \"earthquake-events\",\n  \"KeyConditionExpression\": \"pk = :pk\",\n  \"ExpressionAttributeValues\": {\n    \":pk\": { \"S\": \"{{logPartition}}\" }\n  },\n  \"ScanIndexForward\": false,\n  \"Limit\": 20\n}"
+						},
+						"url": {
+							"raw": "{{dynamoUrl}}",
+							"host": ["{{dynamoUrl}}"]
+						},
+						"description": "Queries request-log items directly by the base table partition key (`pk = \"LOG#<YYYYMMDD>\"`).\n\nThis reflects the current implementation where logs are NOT written to the TimeOrderedIndex GSI, so GSI queries will return zero rows until the data model is updated."
+					},
+					"response": []
+				},
+				{
+					"name": "Query Request Logs (TimeOrderedIndex GSI)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Logs query targets TimeOrderedIndex', function () {",
+									"    const requestBody = JSON.parse(pm.request.body.raw);",
+									"    pm.expect(requestBody.IndexName).to.eql('TimeOrderedIndex');",
+									"    pm.expect(requestBody.KeyConditionExpression).to.include('gsi1pk = :pk');",
+									"});",
+									"",
+									"const responseBody = pm.response.json();",
+									"if (!responseBody.Items || responseBody.Items.length === 0) {",
+									"    console.warn('No items returned from GSI. Ensure new logs were written after gsi1pk/gsi1sk deployment.');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/x-amz-json-1.0"
+							},
+							{
+								"key": "X-Amz-Target",
+								"value": "DynamoDB_20120810.Query"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"TableName\": \"earthquake-events\",\n  \"IndexName\": \"TimeOrderedIndex\",\n  \"KeyConditionExpression\": \"gsi1pk = :pk\",\n  \"ExpressionAttributeValues\": {\n    \":pk\": { \"S\": \"{{logPartition}}\" }\n  },\n  \"ScanIndexForward\": false,\n  \"Limit\": 20\n}"
+						},
+						"url": {
+							"raw": "{{dynamoUrl}}",
+							"host": ["{{dynamoUrl}}"]
+						},
+						"description": "Queries the TimeOrderedIndex GSI for request-log items. Requires logs to include `gsi1pk`/`gsi1sk`, which the query Lambda now writes. If this returns no items, ingest/query fresh requests to seed new logs."
+					},
+					"response": []
+				}
+			],
+			"description": "Operational helpers for inspecting DynamoDB-backed request logs using the schema that is currently deployed."
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:4566/restapis/YOUR_API_ID/local/_user_request_",
+			"type": "string"
+		},
+		{
+			"key": "dynamoUrl",
+			"value": "http://localhost:4566",
+			"type": "string"
+		},
+		{
+			"key": "nextToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "starttime",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "endtime",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "logPartition",
+			"value": "LOG#20251019",
+			"type": "string"
+		}
+	]
+}

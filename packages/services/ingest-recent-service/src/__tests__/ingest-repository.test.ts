@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+process.env.AWS_REGION = "us-east-1";
+process.env.TABLE_NAME = "earthquake-events";
+
 const sendMock = vi.fn();
 const documentClientFromMock = vi.fn(() => ({
 	send: sendMock,
