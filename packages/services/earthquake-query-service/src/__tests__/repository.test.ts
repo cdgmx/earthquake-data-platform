@@ -19,7 +19,7 @@ describe("repository", () => {
 		});
 	});
 
-	describe("createRequestLog", () => {
+	describe("saveQueryRequestLog", () => {
 		it("should create LOG item with 7-day TTL", () => {
 			// This test validates the TTL calculation
 			expect(true).toBe(true);

@@ -1,15 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import type { StructuredLogEvent } from "@earthquake/utils";
 import { log } from "@earthquake/utils";
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { decodeCursor, encodeCursor } from "./cursor-codec.js";
 import { executeQuery } from "./query-service.js";
-import { createRequestLog } from "./repository.js";
+import { createQueryRequestLog } from "./repository.js";
 import type { ErrorResponse, QueryResponse } from "./schemas.js";
 import { type ValidatedQueryParams, validateQueryParams } from "./validator.js";
-
-const client = new DynamoDBClient({});
 
 export async function handler(
 	event: APIGatewayProxyEvent,
@@ -138,8 +134,6 @@ export async function handler(
 		}
 
 		const result = await executeQuery({
-			client,
-			tableName,
 			starttime: validatedParams.starttime,
 			endtime: validatedParams.endtime,
 			minmagnitude: validatedParams.minmagnitude,
@@ -156,49 +150,19 @@ export async function handler(
 
 		const latencyMs = Date.now() - startTime;
 
-		const logEvent: Record<string, unknown> = {
-			level: "INFO" as const,
-			timestamp: Date.now(),
-			requestId,
-			message: "Query completed successfully",
-			route: "/earthquakes" as const,
-			status: 200,
-			latencyMs,
-			query: {
-				starttime: validatedParams.starttime,
-				endtime: validatedParams.endtime,
-				minmagnitude: validatedParams.minmagnitude,
-				pageSize: validatedParams.pageSize,
-			},
-			summary: {
-				resultCount: result.items.length,
-				bucketsScanned: result.bucketsScanned,
-				hasNextToken: !!result.nextCursor,
-			},
-		};
-
-		const logSize = JSON.stringify(logEvent).length;
-		if (logSize > 8192) {
-			delete logEvent.query;
-			logEvent._truncated = true;
-		}
-
-		log(logEvent as StructuredLogEvent);
-
-		await createRequestLog({
-			client,
-			tableName,
-			requestId,
-			timestamp: startTime,
-			status: 200,
-			latencyMs,
+		await createQueryRequestLog({
 			starttime: validatedParams.starttime,
 			endtime: validatedParams.endtime,
 			minmagnitude: validatedParams.minmagnitude,
 			pageSize: validatedParams.pageSize,
-			resultCount: result.items.length,
 			hasNextToken: !!result.nextCursor,
 			bucketsScanned: result.bucketsScanned,
+			resultCount: result.items.length,
+			timestamp: startTime,
+			requestId,
+			route: "/earthquakes",
+			status: 200,
+			latencyMs,
 		});
 
 		return {

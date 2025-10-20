@@ -1,6 +1,5 @@
 import {
-	type EarthquakeEvent,
-	EarthquakeEventSchema,
+	EarthquakeEventItemSchema,
 	type USGSFeature,
 	USGSFeatureSchema,
 } from "./schemas.js";
@@ -23,9 +22,7 @@ function validateMagnitude(mag: number): number {
 	return mag;
 }
 
-export function normalizeEarthquakeEvent(
-	feature: USGSFeature,
-): EarthquakeEvent {
+export function normalizeEarthquakeEvent(feature: USGSFeature) {
 	const validatedFeature = USGSFeatureSchema.parse(feature);
 
 	const eventId = validatedFeature.id;
@@ -33,6 +30,7 @@ export function normalizeEarthquakeEvent(
 	const [lon, lat, depth] = validatedFeature.geometry.coordinates;
 
 	validateCoordinates(lon, lat);
+
 	const validatedMag = validateMagnitude(validatedFeature.properties.mag);
 
 	const dayBucket = calculateDayBucket(eventTsMs);
@@ -44,7 +42,7 @@ export function normalizeEarthquakeEvent(
 		eventId,
 		eventTsMs,
 		mag: validatedMag,
-		place: validatedFeature.properties.place,
+		place: validatedFeature.properties.place ?? null,
 		lat,
 		lon,
 		depth: depth ?? null,
@@ -55,7 +53,7 @@ export function normalizeEarthquakeEvent(
 		ingestedAt: Date.now(),
 	};
 
-	return EarthquakeEventSchema.parse(event);
+	return EarthquakeEventItemSchema.parse(event);
 }
 
 export function calculateDayBucket(timestampMs: number): string {

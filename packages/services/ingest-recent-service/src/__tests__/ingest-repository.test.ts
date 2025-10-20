@@ -22,7 +22,7 @@ vi.mock("@aws-sdk/lib-dynamodb", () => ({
 	PutCommand: vi.fn(),
 }));
 
-vi.mock("@earthquake/utils", () => ({
+vi.mock("@earthquake/dynamo-client", () => ({
 	putIfNotExists: putIfNotExistsMock,
 	putItem: putItemMock,
 }));
@@ -77,11 +77,9 @@ describe("ingest-repository", () => {
 	});
 
 	it("delegates log writes to putItem", async () => {
-		const { createRequestLog } = await import("../repository.js");
+		const { createIngestRequestLog } = await import("../repository.js");
 
 		const logEntry = {
-			pk: "LOG#20251019",
-			sk: "1729360000123#550e8400-e29b-41d4-a716-446655440000",
 			entity: "LOG",
 			requestId: "550e8400-e29b-41d4-a716-446655440000",
 			timestamp: 1729360000123,
@@ -93,17 +91,16 @@ describe("ingest-repository", () => {
 			upserted: 100,
 			skipped: 0,
 			retries: 0,
-			params: {},
 			ttl: 1729964800,
 		};
 
-		await createRequestLog(logEntry);
+		await createIngestRequestLog(logEntry);
 
 		expect(documentClientFromMock).toHaveBeenCalledTimes(1);
 		expect(putItemMock).toHaveBeenCalledWith(
 			expect.objectContaining({ send: sendMock }),
 			{
-				TableName: "earthquake-events",
+				TableName: "earthquake-logs",
 				Item: logEntry,
 			},
 		);

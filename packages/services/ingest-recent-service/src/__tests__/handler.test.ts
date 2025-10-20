@@ -97,7 +97,7 @@ vi.mock("../usgs-client.js", () => ({
 
 vi.mock("../repository.js", () => ({
 	insertEvent: vi.fn(async () => "inserted"),
-	createRequestLog: vi.fn(async () => {}),
+	createIngestRequestLog: vi.fn(async () => {}),
 }));
 
 describe("handler", () => {
