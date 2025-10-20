@@ -19,6 +19,8 @@
 		"@aws-sdk/util-dynamodb": "^3.913.0",
 		"@earthquake/schemas": "workspace:*",
 		"@earthquake/utils": "workspace:*",
+		"@earthquake/observability": "workspace:*",
+		"@earthquake/dynamo-client": "workspace:*",
 		"zod": "^4.1.12"
 	},
 	"devDependencies": {

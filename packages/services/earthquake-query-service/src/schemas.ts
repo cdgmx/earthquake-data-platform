@@ -1,4 +1,6 @@
-import type { APIError, EarthquakeItem } from "@earthquake/schemas";
+import type { APIError, EarthquakeEvent } from "@earthquake/schemas";
+
+export type { EarthquakeEvent } from "@earthquake/schemas/earthquake";
 
 export interface QueryRequest {
 	starttime: string | number;
@@ -9,11 +11,10 @@ export interface QueryRequest {
 }
 
 export interface QueryResponse {
-	items: EarthquakeItem[];
+	items: EarthquakeEvent[];
 	nextToken?: string;
 }
 
-export type { EarthquakeItem };
 export type ErrorResponse = APIError;
 
 export interface CursorPayload {

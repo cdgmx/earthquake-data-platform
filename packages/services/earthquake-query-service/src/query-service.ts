@@ -1,6 +1,5 @@
-import type { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { queryDayBucket } from "./repository.js";
-import type { CursorPayload, EarthquakeItem } from "./schemas.js";
+import type { CursorPayload, EarthquakeEvent } from "./schemas.js";
 
 export function getDayBuckets(starttime: number, endtime: number): string[] {
 	const buckets: string[] = [];
@@ -26,8 +25,6 @@ export function getDayBuckets(starttime: number, endtime: number): string[] {
 }
 
 export interface ExecuteQueryParams {
-	client: DynamoDBClient;
-	tableName: string;
 	starttime: number;
 	endtime: number;
 	minmagnitude: number;
@@ -36,7 +33,7 @@ export interface ExecuteQueryParams {
 }
 
 export interface ExecuteQueryResult {
-	items: EarthquakeItem[];
+	items: EarthquakeEvent[];
 	nextCursor?: CursorPayload;
 	bucketsScanned: number;
 }
@@ -44,19 +41,11 @@ export interface ExecuteQueryResult {
 export async function executeQuery(
 	params: ExecuteQueryParams,
 ): Promise<ExecuteQueryResult> {
-	const {
-		client,
-		tableName,
-		starttime,
-		endtime,
-		minmagnitude,
-		pageSize,
-		cursor,
-	} = params;
+	const { starttime, endtime, minmagnitude, pageSize, cursor } = params;
 
 	const buckets = cursor?.buckets || getDayBuckets(starttime, endtime);
 	const startIdx = cursor?.idx || 0;
-	const items: EarthquakeItem[] = [];
+	const items: EarthquakeEvent[] = [];
 	let bucketsScanned = 0;
 
 	for (let i = startIdx; i < buckets.length; i++) {
@@ -64,8 +53,6 @@ export async function executeQuery(
 		const exclusiveStartKey = i === startIdx ? cursor?.lek : undefined;
 
 		const result = await queryDayBucket({
-			client,
-			tableName,
 			dayBucket,
 			startMs: starttime,
 			endMs: endtime,

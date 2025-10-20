@@ -1,15 +1,30 @@
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import type { DynamoDocClient } from "@earthquake/dynamo-client";
+import { queryItems } from "@earthquake/dynamo-client";
 import {
-	type AttributeValue,
-	type DynamoDBClient,
-	PutItemCommand,
-	QueryCommand,
-} from "@aws-sdk/client-dynamodb";
-import { marshall } from "@aws-sdk/util-dynamodb";
-import type { EarthquakeItem } from "./schemas.js";
+	buildQueryRequestLog,
+	type QueryRequestLogInput,
+	writeRequestLog,
+} from "@earthquake/observability";
+import type { QueryRequestLog } from "@earthquake/schemas";
+import type { EarthquakeEvent } from "./schemas.js";
+
+const region = process.env.AWS_REGION;
+if (!region) {
+	throw new Error("AWS_REGION environment variable is required");
+}
+
+const tableName = process.env.TABLE_NAME;
+if (!tableName) {
+	throw new Error("TABLE_NAME environment variable is required");
+}
+
+const client = new DynamoDBClient({ region });
+const docClient = DynamoDBDocumentClient.from(client);
+const TABLE_NAME = tableName;
 
 export interface QueryDayBucketParams {
-	client: DynamoDBClient;
-	tableName: string;
 	dayBucket: string;
 	startMs: number;
 	endMs: number;
@@ -19,144 +34,47 @@ export interface QueryDayBucketParams {
 }
 
 export interface QueryDayBucketResult {
-	items: EarthquakeItem[];
+	items: EarthquakeEvent[];
 	lastEvaluatedKey?: Record<string, unknown>;
 }
 
 export async function queryDayBucket(
 	params: QueryDayBucketParams,
 ): Promise<QueryDayBucketResult> {
-	const {
-		client,
-		tableName,
-		dayBucket,
-		startMs,
-		endMs,
-		minMagnitude,
-		limit,
-		exclusiveStartKey,
-	} = params;
+	const { dayBucket, startMs, endMs, minMagnitude, limit, exclusiveStartKey } =
+		params;
 
 	// Over-fetch to account for FilterExpression filtering out items
 	// DynamoDB's Limit applies before FilterExpression, so we need to scan more items
 	// Use 3x multiplier as a reasonable heuristic (adjust based on real data)
 	const fetchLimit = Math.max(limit * 3, 100);
 
-	const command = new QueryCommand({
-		TableName: tableName,
+	const response = await queryItems<EarthquakeEvent>(docClient, {
+		TableName: TABLE_NAME,
 		IndexName: "TimeOrderedIndex",
 		KeyConditionExpression: "gsi1pk = :pk AND gsi1sk BETWEEN :start AND :end",
 		FilterExpression: "mag >= :minMag",
-		ExpressionAttributeValues: marshall({
+		ExpressionAttributeValues: {
 			":pk": `DAY#${dayBucket}`,
 			":start": startMs,
 			":end": endMs,
 			":minMag": minMagnitude,
-		}),
+		},
 		ScanIndexForward: false,
 		Limit: fetchLimit,
-		ExclusiveStartKey: exclusiveStartKey as
-			| Record<string, AttributeValue>
-			| undefined,
+		ExclusiveStartKey: exclusiveStartKey,
 	});
 
-	const response = await client.send(command);
-
-	const items: EarthquakeItem[] = (response.Items || []).map((item) => ({
-		eventId: item.eventId?.S || "",
-		eventTsMs: Number.parseInt(item.eventTsMs?.N || "0", 10),
-		mag: Number.parseFloat(item.mag?.N || "0"),
-		place: item.place?.S || "",
-		lat: Number.parseFloat(item.lat?.N || "0"),
-		lon: Number.parseFloat(item.lon?.N || "0"),
-		depth: item.depth?.N ? Number.parseFloat(item.depth.N) : null,
-	}));
-
-	return {
-		items,
-		lastEvaluatedKey: response.LastEvaluatedKey
-			? JSON.parse(JSON.stringify(response.LastEvaluatedKey))
-			: undefined,
-	};
+	return response;
 }
 
-export interface CreateRequestLogParams {
-	client: DynamoDBClient;
-	tableName: string;
-	requestId: string;
-	timestamp: number;
-	status: number;
-	latencyMs: number;
-	starttime: number;
-	endtime: number;
-	minmagnitude: number;
-	pageSize: number;
-	resultCount: number;
-	hasNextToken: boolean;
-	bucketsScanned: number;
-	error?: string;
-}
-
-export async function createRequestLog(
-	params: CreateRequestLogParams,
+export async function createQueryRequestLog(
+	logInput: QueryRequestLogInput,
 ): Promise<void> {
-	const {
-		client,
-		tableName,
-		requestId,
-		timestamp,
-		status,
-		latencyMs,
-		starttime,
-		endtime,
-		minmagnitude,
-		pageSize,
-		resultCount,
-		hasNextToken,
-		bucketsScanned,
-		error,
-	} = params;
-
-	const date = new Date(timestamp);
-	const dayBucket = date.toISOString().split("T")[0].replace(/-/g, "");
-	const ttl = Math.floor(timestamp / 1000) + 7 * 24 * 60 * 60;
-
-	const item: Record<string, unknown> = {
-		pk: `LOG#${dayBucket}`,
-		sk: `${timestamp}#${requestId}`,
-		gsi1pk: `LOG#${dayBucket}`,
-		gsi1sk: timestamp,
-		entity: "LOG",
-		logType: "QUERY",
-		requestId,
-		timestamp,
-		route: "/earthquakes",
-		status,
-		latencyMs,
-		starttime,
-		endtime,
-		minmagnitude,
-		pageSize,
-		resultCount,
-		hasNextToken,
-		bucketsScanned,
-		ttl,
-		...(error ? { error } : {}),
-	};
-
-	const itemSize = JSON.stringify(item).length;
-	if (itemSize > 1024) {
-		delete item.bucketsScanned;
-	}
-
-	const command = new PutItemCommand({
-		TableName: tableName,
-		Item: marshall(item),
+	const item = buildQueryRequestLog(logInput);
+	await writeRequestLog({
+		tableName: TABLE_NAME,
+		item,
+		client: docClient,
 	});
-
-	try {
-		await client.send(command);
-	} catch (error) {
-		console.warn("Failed to write request log (non-blocking):", error);
-	}
 }

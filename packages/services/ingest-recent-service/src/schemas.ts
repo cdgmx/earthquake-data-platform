@@ -1,57 +1,14 @@
 import { z } from "zod";
 
-export const IngestSummarySchema = z.object({
-	fetched: z.number().int().nonnegative(),
-	upserted: z.number().int().nonnegative(),
-	skipped: z.number().int().nonnegative(),
-	retries: z.number().int().nonnegative(),
-});
-
-export type IngestSummary = z.infer<typeof IngestSummarySchema>;
+export {
+	type EarthquakeEventItem,
+	EarthquakeEventItemSchema,
+} from "@earthquake/schemas";
 export type { APIError as ErrorResponse } from "@earthquake/schemas/errors";
-
-export const EarthquakeEventSchema = z.object({
-	pk: z.string(),
-	sk: z.string(),
-	entity: z.string(),
-	eventId: z.string(),
-	eventTsMs: z.number().int(),
-	mag: z.number(),
-	place: z.string(),
-	lat: z.number().min(-90).max(90),
-	lon: z.number().min(-180).max(180),
-	depth: z.number().nullable(),
-	dayBucket: z.string(),
-	gsi1pk: z.string(),
-	gsi1sk: z.number().int(),
-	source: z.string(),
-	ingestedAt: z.number().int(),
-});
-
-export const RequestLogSchema = z.object({
-	pk: z.string(),
-	sk: z.string(),
-	entity: z.string(),
-	requestId: z.string(),
-	timestamp: z.number().int(),
-	route: z.string(),
-	logType: z.string(),
-	status: z.number().int(),
-	latencyMs: z.number().int().nonnegative(),
-	error: z.string().optional(),
-	fetched: z.number().int().nonnegative().optional(),
-	upserted: z.number().int().nonnegative().optional(),
-	skipped: z.number().int().nonnegative().optional(),
-	retries: z.number().int().nonnegative().optional(),
-	params: z.record(z.string(), z.unknown()).optional(),
-	upstreamSize: z.number().int().nonnegative().optional(),
-	upstreamHash: z.string().optional(),
-	ttl: z.number().int(),
-});
 
 export const USGSFeaturePropertiesSchema = z.object({
 	mag: z.number(),
-	place: z.string(),
+	place: z.string().nullable(),
 	time: z.number().int(),
 	updated: z.number().int(),
 	tz: z.number().nullable(),
@@ -103,7 +60,5 @@ export const USGSResponseSchema = z.object({
 	features: z.array(USGSFeatureSchema),
 });
 
-export type EarthquakeEvent = z.infer<typeof EarthquakeEventSchema>;
-export type RequestLog = z.infer<typeof RequestLogSchema>;
 export type USGSFeature = z.infer<typeof USGSFeatureSchema>;
 export type USGSResponse = z.infer<typeof USGSResponseSchema>;

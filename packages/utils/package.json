@@ -4,7 +4,6 @@
 	"private": true,
 	"exports": {
 		".": "./src/index.ts",
-		"./dynamo-client": "./src/dynamo-client.ts",
 		"./logger": "./src/logger.ts"
 	},
 	"scripts": {
@@ -18,8 +17,8 @@
 	"dependencies": {
 		"clsx": "^2.1.1",
 		"tailwind-merge": "^3.3.1",
-		"@aws-sdk/client-dynamodb": "^3.654.0",
-		"@aws-sdk/lib-dynamodb": "^3.654.0"
+		"@earthquake/dynamo-client": "workspace:*",
+		"@earthquake/schemas": "workspace:*"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.2.6",

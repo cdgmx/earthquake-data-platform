@@ -3,9 +3,26 @@ import {
 	DynamoDBDocumentClient,
 	PutCommand,
 	type PutCommandInput,
+	QueryCommand,
+	type QueryCommandInput,
 } from "@aws-sdk/lib-dynamodb";
 
 export type DynamoDocClient = ReturnType<typeof DynamoDBDocumentClient.from>;
+
+export interface QueryOptions {
+	IndexName?: string;
+	KeyConditionExpression: string;
+	FilterExpression?: string;
+	ExpressionAttributeValues: Record<string, unknown>;
+	Limit?: number;
+	ScanIndexForward?: boolean;
+	ExclusiveStartKey?: Record<string, unknown>;
+}
+
+export interface QueryResult<T> {
+	items: T[];
+	lastEvaluatedKey?: Record<string, unknown>;
+}
 
 export function createDocClient(options?: {
 	client?: DynamoDBClient;
@@ -58,4 +75,17 @@ export async function putItem<T extends object>(
 	await docClient.send(
 		new PutCommand({ TableName: params.TableName, Item: params.Item }),
 	);
+}
+
+export async function queryItems<T>(
+	docClient: DynamoDocClient,
+	options: QueryCommandInput,
+): Promise<QueryResult<T>> {
+	const command = new QueryCommand(options);
+	const { Items, LastEvaluatedKey } = await docClient.send(command);
+
+	return {
+		items: (Items as T[]) || [],
+		lastEvaluatedKey: LastEvaluatedKey,
+	};
 }

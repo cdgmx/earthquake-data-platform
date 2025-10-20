@@ -6,19 +6,21 @@ export enum LogType {
 }
 
 const BaseRequestLogSchema = z.object({
-	pk: z.string(),
-	sk: z.string(),
-	gsi1pk: z.string(),
-	gsi1sk: z.number().int(),
 	entity: z.literal("LOG"),
 	requestId: z.string(),
 	timestamp: z.number().int(),
 	route: z.string(),
-	logType: z.nativeEnum(LogType),
 	status: z.number().int(),
 	latencyMs: z.number().int().nonnegative(),
 	ttl: z.number().int(),
 	error: z.string().optional(),
+});
+
+const ItemSchema = z.object({
+	pk: z.string(),
+	sk: z.string(),
+	gsi1pk: z.string(),
+	gsi1sk: z.number().int(),
 });
 
 export const QueryRequestLogSchema = BaseRequestLogSchema.extend({
@@ -32,7 +34,9 @@ export const QueryRequestLogSchema = BaseRequestLogSchema.extend({
 	bucketsScanned: z.number().int().optional(),
 });
 
-export type QueryRequestLog = z.infer<typeof QueryRequestLogSchema>;
+export const QueryRequestLogItemSchema = QueryRequestLogSchema.extend(
+	ItemSchema.shape,
+);
 
 export const IngestRequestLogSchema = BaseRequestLogSchema.extend({
 	logType: z.literal(LogType.Ingest),
@@ -40,14 +44,14 @@ export const IngestRequestLogSchema = BaseRequestLogSchema.extend({
 	upserted: z.number().int().nonnegative(),
 	skipped: z.number().int().nonnegative(),
 	retries: z.number().int().nonnegative(),
-	params: z
-		.record(z.string(), z.unknown())
-		.optional()
-		.default({}),
 	upstreamSize: z.number().int().nonnegative().optional(),
 	upstreamHash: z.string().optional(),
 });
 
-export type IngestRequestLog = z.infer<typeof IngestRequestLogSchema>;
+export const IngestRequestLogItemSchema = IngestRequestLogSchema.extend(
+	ItemSchema.shape,
+);
 
-export type RequestLog = QueryRequestLog | IngestRequestLog;
+export type IngestRequestLog = z.infer<typeof IngestRequestLogSchema>;
+export type QueryRequestLog = z.infer<typeof QueryRequestLogSchema>;
+export type BaseRequestLog = z.infer<typeof BaseRequestLogSchema>;

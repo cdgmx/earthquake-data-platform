@@ -1,31 +1,29 @@
 import { z } from "zod";
 
-export const EarthquakeItemSchema = z.object({
+const ItemSchema = z.object({
+	pk: z.string(),
+	sk: z.string(),
+	gsi1pk: z.string(),
+	gsi1sk: z.number().int(),
+});
+
+export const EarthquakeEventSchema = z.object({
 	eventId: z.string(),
 	eventTsMs: z.number().int(),
 	mag: z.number(),
-	place: z.string(),
+	place: z.string().nullable(),
 	lat: z.number().min(-90).max(90),
 	lon: z.number().min(-180).max(180),
 	depth: z.number().nullable(),
+	entity: z.string(),
+	dayBucket: z.string(),
+	source: z.string(),
+	ingestedAt: z.number().int(),
 });
 
-	// pk: z.string(),
-	// sk: z.string(),
-	// entity: z.string(),
-	// eventId: z.string(),
-	// eventTsMs: z.number().int(),
-	// mag: z.number(),
-	// place: z.string(),
-	// lat: z.number().min(-90).max(90),
-	// lon: z.number().min(-180).max(180),
-	// depth: z.number().nullable(),
-	// dayBucket: z.string(),
-	// gsi1pk: z.string(),
-	// gsi1sk: z.number().int(),
-	// source: z.string(),
-	// ingestedAt: z.number().int(),
+export const EarthquakeEventItemSchema = EarthquakeEventSchema.extend(
+	ItemSchema.shape,
+);
 
-
-
-export type EarthquakeItem = z.infer<typeof EarthquakeItemSchema>;
+export type EarthquakeEvent = z.infer<typeof EarthquakeEventSchema>;
+export type EarthquakeEventItem = z.infer<typeof EarthquakeEventItemSchema>;

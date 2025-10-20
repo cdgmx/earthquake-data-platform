@@ -23,6 +23,7 @@ describe("handler integration", () => {
 	beforeEach(() => {
 		process.env.TABLE_NAME = "earthquake-events";
 		process.env.NEXT_TOKEN_SECRET = "test-secret-key";
+		process.env.AWS_REGION = "us-east-1";
 	});
 
 	describe("validation", () => {

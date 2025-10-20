@@ -6,8 +6,8 @@ import type {
 	Context,
 } from "aws-lambda";
 import { normalizeEarthquakeEvent } from "./normalizer.js";
-import { createRequestLog, insertEvent } from "./repository.js";
-import type { ErrorResponse, IngestSummary } from "./schemas.js";
+import { createIngestRequestLog, insertEvent } from "./repository.js";
+import type { ErrorResponse } from "./schemas.js";
 import { fetchRecentEarthquakes } from "./usgs-client.js";
 
 export async function handler(
@@ -57,7 +57,7 @@ export async function handler(
 
 		const latencyMs = Date.now() - startTime;
 
-		const summary: IngestSummary = {
+		const summary = {
 			fetched: events.length,
 			upserted,
 			skipped,
@@ -76,29 +76,18 @@ export async function handler(
 			upstreamFingerprint: fingerprint,
 		});
 
-		const dayBucket = new Date(startTime)
-			.toISOString()
-			.slice(0, 10)
-			.replace(/-/g, "");
-
-		await createRequestLog({
-			pk: `LOG#${dayBucket}`,
-			sk: `${startTime}#${requestId}`,
-			entity: "LOG",
+		await createIngestRequestLog({
 			requestId,
 			timestamp: startTime,
 			route: "/ingest/recent",
-			logType: "INGEST",
 			status: 200,
 			latencyMs,
-			fetched: summary.fetched,
-			upserted: summary.upserted,
-			skipped: summary.skipped,
-			retries: summary.retries,
-			params: {},
+			fetched: events.length,
+			upserted,
+			skipped,
+			retries,
 			upstreamSize: fingerprint.size,
 			upstreamHash: fingerprint.hash,
-			ttl: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60,
 		});
 
 		return {
@@ -149,27 +138,20 @@ export async function handler(
 			latencyMs,
 			error: errorCode,
 		});
-
-		const dayBucket = new Date(startTime)
-			.toISOString()
-			.slice(0, 10)
-			.replace(/-/g, "");
-
 		try {
-			await createRequestLog({
-				pk: `LOG#${dayBucket}`,
-				sk: `${startTime}#${requestId}`,
-				entity: "LOG",
+			await createIngestRequestLog({
 				requestId,
 				timestamp: startTime,
 				route: "/ingest/recent",
-				logType: "INGEST",
 				status: statusCode,
 				latencyMs,
 				error: errorCode,
+				fetched: 0,
+				upserted: 0,
+				skipped: 0,
 				retries: 0,
-				params: {},
-				ttl: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60,
+				upstreamSize: 0,
+				upstreamHash: "",
 			});
 		} catch (logError) {
 			log({

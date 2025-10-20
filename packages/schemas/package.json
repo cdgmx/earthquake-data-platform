@@ -4,7 +4,9 @@
 	"private": true,
 	"exports": {
 		".": "./src/index.ts",
-		"./errors": "./src/errors.ts"
+		"./errors": "./src/errors.ts",
+		"./earthquake": "./src/earthquake.ts",
+		"./log": "./src/log.ts"
 	},
 	"scripts": {
 		"lint": "biome check --write .",
