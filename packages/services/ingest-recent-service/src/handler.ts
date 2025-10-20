@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
-import { log } from "@earthquake/utils";
+import { type FormattedErrorBody, formatErrorBody } from "@earthquake/errors";
+import { createLogger, type Logger } from "@earthquake/utils";
 import type {
 	APIGatewayProxyEvent,
 	APIGatewayProxyResult,
@@ -10,13 +11,77 @@ import type {
 import { env } from "./env.js";
 import { normalizeEarthquakeEvent } from "./normalizer.js";
 import { createIngestRequestLog, insertEvent } from "./repository.js";
-import type { ErrorResponse } from "./schemas.js";
 import { fetchRecentEarthquakes } from "./usgs-client.js";
 
 const CLIENT = new DynamoDBClient();
 const DOC_CLIENT = DynamoDBDocumentClient.from(CLIENT);
 const TABLE_NAME = env.TABLE_NAME;
 const USGS_API_URL = env.USGS_API_URL;
+const ROUTE_PATH = "/ingest/recent";
+
+const baseLogger = createLogger({
+	service: "ingest-recent-service",
+	defaultFields: {
+		route: ROUTE_PATH,
+	},
+});
+
+interface IngestionSummary {
+	fetched: number;
+	upserted: number;
+	skipped: number;
+	retries: number;
+}
+
+async function ingestEarthquakeData(
+	docClient: DynamoDBDocumentClient,
+	logger: Logger,
+): Promise<IngestionSummary> {
+	const { data: usgsResponse, retries } =
+		await fetchRecentEarthquakes(USGS_API_URL);
+	const events = usgsResponse.features.map(normalizeEarthquakeEvent);
+
+	logger.info(`Fetched ${events.length} events from USGS API.`);
+
+	let upserted = 0;
+	let skipped = 0;
+
+	for (const earthquakeEvent of events) {
+		try {
+			const result = await insertEvent({
+				event: earthquakeEvent,
+				docClient: docClient,
+				tableName: TABLE_NAME,
+			});
+			if (result === "inserted") upserted++;
+			else skipped++;
+		} catch (error) {
+			logger.warn(
+				`Failed to insert event ${earthquakeEvent.eventId}: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		}
+	}
+
+	return { fetched: events.length, upserted, skipped, retries };
+}
+
+function createSuccessResponse(
+	summary: IngestionSummary,
+): APIGatewayProxyResult {
+	return {
+		statusCode: 200,
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(summary),
+	};
+}
+
+function createErrorResponse(error: FormattedErrorBody): APIGatewayProxyResult {
+	return {
+		statusCode: error.status,
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(error.body),
+	};
+}
 
 export async function handler(
 	_event: APIGatewayProxyEvent,
@@ -24,164 +89,54 @@ export async function handler(
 ): Promise<APIGatewayProxyResult> {
 	const requestId = randomUUID();
 	const startTime = Date.now();
+	const logger = baseLogger.withCorrelationId(requestId);
 
-	log({
-		level: "INFO",
-		timestamp: startTime,
-		requestId,
-		message: "Starting ingestion request",
-		route: "/ingest/recent",
-	});
+	let response: APIGatewayProxyResult;
+	let summary: IngestionSummary = {
+		fetched: 0,
+		upserted: 0,
+		skipped: 0,
+		retries: 0,
+	};
+	let status = 500;
+	let errorMessage: string | undefined;
 
 	try {
-		const { data: usgsResponse, retries } =
-			await fetchRecentEarthquakes(USGS_API_URL);
+		logger.info("Starting ingestion request");
+		summary = await ingestEarthquakeData(DOC_CLIENT, logger);
+		status = 200;
+		response = createSuccessResponse(summary);
+	} catch (e) {
+		const formattedError = formatErrorBody(e);
+		status = formattedError.status;
+		errorMessage = formattedError.body.message;
+		response = createErrorResponse(formattedError);
 
-		const events = usgsResponse.features.map(normalizeEarthquakeEvent);
-
-		let upserted = 0;
-		let skipped = 0;
-
-		for (const earthquakeEvent of events) {
-			try {
-				const result = await insertEvent({
-					event: earthquakeEvent,
-					docClient: DOC_CLIENT,
-					tableName: TABLE_NAME,
-				});
-				if (result === "inserted") {
-					upserted++;
-				} else {
-					skipped++;
-				}
-			} catch (error) {
-				log({
-					level: "WARN",
-					timestamp: Date.now(),
-					requestId,
-					message: `Failed to insert event ${earthquakeEvent.eventId}: ${error instanceof Error ? error.message : String(error)}`,
-					route: "/ingest/recent",
-				});
-			}
-		}
-
+		logger.error(`Unexpected error: ${errorMessage}`, {
+			status,
+			error: formattedError.body.error,
+		});
+	} finally {
 		const latencyMs = Date.now() - startTime;
 
-		const summary = {
-			fetched: events.length,
-			upserted,
-			skipped,
-			retries,
-		};
-
-		const requestLogInput = {
-			requestId,
-			timestamp: startTime,
-			route: "/ingest/recent",
-			status: 200,
-			latencyMs,
-			fetched: events.length,
-			upserted,
-			skipped,
-			retries,
-		};
-
-		log({
-			level: "INFO",
-			timestamp: Date.now(),
-			requestId,
-			message: "Ingestion completed successfully",
-			route: "/ingest/recent",
-			status: 200,
-			latencyMs,
-			summary,
-		});
+		logger.info("Ingestion request finished", { status, latencyMs, summary });
 
 		await createIngestRequestLog({
-			logInput: requestLogInput,
+			logInput: {
+				requestId,
+				timestamp: startTime,
+				route: ROUTE_PATH,
+				status,
+				latencyMs,
+				error: errorMessage,
+				...summary,
+			},
 			docClient: DOC_CLIENT,
 			tableName: TABLE_NAME,
+		}).catch((_logError) => {
+			logger.warn("Failed to write request log", { error: "LOG_WRITE_FAILED" });
 		});
-
-		return {
-			statusCode: 200,
-			headers: {
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify(summary),
-		};
-	} catch (error) {
-		const latencyMs = Date.now() - startTime;
-		const errorMessage =
-			error instanceof Error ? error.message : "Unknown error";
-
-		let statusCode = 500;
-		let errorCode = "INTERNAL";
-
-		if (errorMessage.includes("USGS API") || errorMessage.includes("fetch")) {
-			statusCode = 503;
-			errorCode = "USGS_UNAVAILABLE";
-		} else if (
-			errorMessage.includes("JSON") ||
-			errorMessage.includes("parse")
-		) {
-			statusCode = 502;
-			errorCode = "USGS_PARSE_ERROR";
-		} else if (
-			errorMessage.includes("DynamoDB") ||
-			errorMessage.includes("Table")
-		) {
-			statusCode = 503;
-			errorCode = "DATABASE_UNAVAILABLE";
-		} else if (
-			errorMessage.includes("TABLE_NAME") ||
-			errorMessage.includes("environment")
-		) {
-			statusCode = 503;
-			errorCode = "INFRASTRUCTURE_NOT_READY";
-		}
-
-		const requestLogInput = {
-			requestId,
-			timestamp: startTime,
-			route: "/ingest/recent",
-			status: statusCode,
-			latencyMs,
-			error: errorCode,
-			fetched: 0,
-			upserted: 0,
-			skipped: 0,
-			retries: 0,
-		};
-
-		log({
-			level: "ERROR",
-			timestamp: Date.now(),
-			requestId,
-			message: `Ingestion failed: ${errorMessage}`,
-			route: "/ingest/recent",
-			status: statusCode,
-			latencyMs,
-			error: errorCode,
-		});
-
-		await createIngestRequestLog({
-			logInput: requestLogInput,
-			docClient: DOC_CLIENT,
-			tableName: TABLE_NAME,
-		});
-
-		const errorResponse: ErrorResponse = {
-			error: errorCode,
-			message: errorMessage,
-		};
-
-		return {
-			statusCode,
-			headers: {
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify(errorResponse),
-		};
 	}
+
+	return response;
 }

@@ -153,9 +153,15 @@ describe("handler", () => {
 	});
 
 	it("should return 503 when USGS is unavailable", async () => {
+		const { AppError } = await import("@earthquake/errors");
+		const { ERROR_CODES } = await import("@earthquake/errors");
 		const { fetchRecentEarthquakes } = await import("../usgs-client.js");
 		(fetchRecentEarthquakes as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-			new Error("USGS API unavailable"),
+			new AppError({
+				code: ERROR_CODES.USGS_UNAVAILABLE,
+				message: "USGS API unavailable",
+				httpStatus: 503,
+			}),
 		);
 
 		const event = {

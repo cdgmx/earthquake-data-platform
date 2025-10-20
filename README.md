@@ -11,8 +11,9 @@ earthquake-monorepo/
 │   └── web/              # Next.js 15 earthquake monitoring app
 ├── packages/
 │   ├── earthquakes/      # Domain logic, API clients, schemas
+│   ├── libs/             # Shared libraries (errors, dynamo-client, observability)
 │   ├── schemas/          # Shared schema definitions
-│   ├── services/         # Lambda services (hello-service, ingest-recent-service)
+│   ├── services/         # Lambda services (ingest-recent-service, earthquake-query-service)
 │   ├── ui/               # Shared UI components (shadcn/ui based)
 │   └── utils/            # Shared utility helpers and structured logging
 ├── specs/                # Feature specifications and runbooks
@@ -103,10 +104,10 @@ pnpm infra:synth        # Generate CloudFormation templates
 
 ### What Gets Deployed
 
-- **Lambda Function** (Node.js 20.x): Hello Service handler
-- **API Gateway** (REST API): HTTP endpoint (optional usage plan/API key via `ENABLE_USAGE_PLAN`)
+- **Lambda Functions** (Node.js 20.x): Earthquake ingestion and query services
+- **DynamoDB Table**: Single table design for earthquake events and request logs
 - **CloudWatch Logs**: Automatic logging for Lambda invocations
-- **Usage Plans**: Available when enabled for API key testing
+- **EventBridge Scheduler**: Periodic USGS data ingestion
 
 ### Infrastructure as Code
 
@@ -118,7 +119,11 @@ Infrastructure is defined in \`apps/infra/\` using:
 
 See [specs/002-localstack-cdk-infra/quickstart.md](./specs/002-localstack-cdk-infra/quickstart.md) for detailed infrastructure documentation.
 
-## 📝 Scripts
+## � Documentation
+
+- **[Logging & Error Handling](./docs/LOGGING_AND_ERROR_HANDLING.md)**: Structured logging patterns, AppError usage, and CloudWatch Insights queries
+
+## �📝 Scripts
 
 Available at the root level (runs across all packages via Turbo):
 

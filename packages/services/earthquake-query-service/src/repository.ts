@@ -1,5 +1,6 @@
 import type { DynamoDocClient } from "@earthquake/dynamo-client";
 import { queryItems } from "@earthquake/dynamo-client";
+import { AppError, ERROR_CODES } from "@earthquake/errors";
 import {
 	buildQueryRequestLog,
 	type QueryRequestLogInput,
@@ -50,39 +51,57 @@ export function createRepository({
 			exclusiveStartKey,
 		} = params;
 
-		// Over-fetch to account for FilterExpression filtering out items
-		// DynamoDB's Limit applies before FilterExpression, so we need to scan more items
-		// Use 3x multiplier as a reasonable heuristic (adjust based on real data)
 		const fetchLimit = Math.max(limit * FETCH_MULTIPLIER, MIN_FETCH_LIMIT);
 
-		const response = await queryItems<EarthquakeEvent>(docClient, {
-			TableName: tableName,
-			IndexName: "TimeOrderedIndex",
-			KeyConditionExpression: "gsi1pk = :pk AND gsi1sk BETWEEN :start AND :end",
-			FilterExpression: "mag >= :minMag",
-			ExpressionAttributeValues: {
-				":pk": `DAY#${dayBucket}`,
-				":start": startMs,
-				":end": endMs,
-				":minMag": minMagnitude,
-			},
-			ScanIndexForward: false,
-			Limit: fetchLimit,
-			ExclusiveStartKey: exclusiveStartKey,
-		});
+		try {
+			const response = await queryItems<EarthquakeEvent>(docClient, {
+				TableName: tableName,
+				IndexName: "TimeOrderedIndex",
+				KeyConditionExpression:
+					"gsi1pk = :pk AND gsi1sk BETWEEN :start AND :end",
+				FilterExpression: "mag >= :minMag",
+				ExpressionAttributeValues: {
+					":pk": `DAY#${dayBucket}`,
+					":start": startMs,
+					":end": endMs,
+					":minMag": minMagnitude,
+				},
+				ScanIndexForward: false,
+				Limit: fetchLimit,
+				ExclusiveStartKey: exclusiveStartKey,
+			});
 
-		return response;
+			return response;
+		} catch (error) {
+			throw new AppError({
+				code: ERROR_CODES.DATABASE_UNAVAILABLE,
+				message: "Failed to query earthquake events",
+				httpStatus: 503,
+				cause: error,
+				metadata: { dayBucket, startMs, endMs },
+			});
+		}
 	}
 
 	async function createQueryRequestLog(
 		input: QueryRequestLogInput,
 	): Promise<void> {
-		const item = buildQueryRequestLog(input);
-		await writeRequestLog({
-			tableName,
-			item,
-			client: docClient,
-		});
+		try {
+			const item = buildQueryRequestLog(input);
+			await writeRequestLog({
+				tableName,
+				item,
+				client: docClient,
+			});
+		} catch (error) {
+			throw new AppError({
+				code: ERROR_CODES.DATABASE_UNAVAILABLE,
+				message: "Failed to create query request log",
+				httpStatus: 503,
+				cause: error,
+				metadata: { requestId: input.requestId },
+			});
+		}
 	}
 
 	return {

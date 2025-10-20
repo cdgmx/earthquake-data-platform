@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
-import { log } from "@earthquake/utils";
+import { AppError, ERROR_CODES } from "@earthquake/errors";
+import { createLogger } from "@earthquake/utils";
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { decodeCursor, encodeCursor } from "./cursor-codec.js";
 import { env } from "./env.js";
@@ -24,11 +25,19 @@ const queryService = createQueryService({
 	repository,
 });
 
+const baseLogger = createLogger({
+	service: "earthquake-query-service",
+	defaultFields: {
+		route: "/earthquakes",
+	},
+});
+
 export async function handler(
 	event: APIGatewayProxyEvent,
 ): Promise<APIGatewayProxyResult> {
 	const requestId = randomUUID();
 	const startTime = Date.now();
+	const logger = baseLogger.withCorrelationId(requestId);
 
 	try {
 		const rawParams = event.queryStringParameters || {};
@@ -46,22 +55,16 @@ export async function handler(
 					nextToken: rawParams.nextToken,
 				};
 			} catch (_error) {
-				// Invalid cursor - return validation error
 				const errorResponse: ErrorResponse = {
 					error: "VALIDATION_ERROR",
 					message: "Invalid query parameters",
 					details: {},
 				};
 				const latencyMs = Date.now() - startTime;
-				log({
-					level: "WARN",
-					timestamp: Date.now(),
-					requestId,
-					route: "/earthquakes",
+				logger.warn("Invalid nextToken", {
 					status: 400,
 					latencyMs,
 					error: "VALIDATION_ERROR",
-					message: "Invalid nextToken",
 				});
 
 				return {
@@ -105,15 +108,10 @@ export async function handler(
 			};
 			const latencyMs = Date.now() - startTime;
 
-			log({
-				level: "WARN",
-				timestamp: Date.now(),
-				requestId,
-				route: "/earthquakes",
+			logger.warn("Validation failed", {
 				status: 400,
 				latencyMs,
 				error: "VALIDATION_ERROR",
-				message: "Validation failed",
 			});
 
 			return {
@@ -140,20 +138,26 @@ export async function handler(
 
 		const latencyMs = Date.now() - startTime;
 
-		await repository.createQueryRequestLog({
-			starttime: validatedParams.starttime,
-			endtime: validatedParams.endtime,
-			minmagnitude: validatedParams.minmagnitude,
-			pageSize: validatedParams.pageSize,
-			hasNextToken: !!result.nextCursor,
-			bucketsScanned: result.bucketsScanned,
-			resultCount: result.items.length,
-			timestamp: startTime,
-			requestId,
-			route: "/earthquakes",
-			status: 200,
-			latencyMs,
-		});
+		try {
+			await repository.createQueryRequestLog({
+				starttime: validatedParams.starttime,
+				endtime: validatedParams.endtime,
+				minmagnitude: validatedParams.minmagnitude,
+				pageSize: validatedParams.pageSize,
+				hasNextToken: !!result.nextCursor,
+				bucketsScanned: result.bucketsScanned,
+				resultCount: result.items.length,
+				timestamp: startTime,
+				requestId,
+				route: "/earthquakes",
+				status: 200,
+				latencyMs,
+			});
+		} catch (_logError) {
+			logger.warn("Failed to write request log", {
+				error: "LOG_WRITE_FAILED",
+			});
+		}
 
 		return {
 			statusCode: 200,
@@ -163,24 +167,37 @@ export async function handler(
 	} catch (error) {
 		const latencyMs = Date.now() - startTime;
 
-		log({
-			level: "ERROR",
-			timestamp: Date.now(),
-			requestId,
-			route: "/earthquakes",
-			status: 503,
-			latencyMs,
-			error: "DATABASE_UNAVAILABLE",
-			message: error instanceof Error ? error.message : "Unknown error",
-		});
+		let statusCode = 500;
+		let errorCode: string = ERROR_CODES.INTERNAL;
+		let errorMessage = "Unknown error";
+
+		if (error instanceof AppError) {
+			statusCode = error.httpStatus;
+			errorCode = error.code;
+			errorMessage = error.message;
+
+			logger.error(error.message, {
+				status: statusCode,
+				latencyMs,
+				error: error.code,
+			});
+		} else {
+			errorMessage = error instanceof Error ? error.message : String(error);
+
+			logger.error(`Unexpected error: ${errorMessage}`, {
+				status: statusCode,
+				latencyMs,
+				error: errorCode,
+			});
+		}
 
 		const errorResponse: ErrorResponse = {
-			error: "DATABASE_UNAVAILABLE",
-			message: "Database query failed",
+			error: errorCode,
+			message: errorMessage,
 		};
 
 		return {
-			statusCode: 503,
+			statusCode,
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify(errorResponse),
 		};
