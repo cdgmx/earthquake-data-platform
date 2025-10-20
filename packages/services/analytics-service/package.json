@@ -1,0 +1,28 @@
+{
+	"name": "@earthquake/analytics-service",
+	"version": "0.1.0",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"test": "vitest run",
+		"test:watch": "vitest"
+	},
+	"dependencies": {
+		"@earthquake/dynamo-client": "workspace:*",
+		"@earthquake/env": "workspace:*",
+		"@earthquake/errors": "workspace:*",
+		"@earthquake/schemas": "workspace:*",
+		"@earthquake/utils": "workspace:*",
+		"zod": "^3.24.1"
+	},
+	"devDependencies": {
+		"@aws-sdk/client-dynamodb": "^3.716.0",
+		"@aws-sdk/lib-dynamodb": "^3.716.0",
+		"@types/aws-lambda": "^8.10.145",
+		"@types/node": "^20.17.9",
+		"typescript": "^5.7.2",
+		"vitest": "^2.1.8"
+	}
+}

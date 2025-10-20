@@ -1,0 +1,7 @@
+{
+	"EarthquakeDataStack": {
+		"IngestApiEndpoint5A41F05F": "https://52zmrdv1g3.execute-api.localhost.localstack.cloud:4566/local/",
+		"ApiEndpoint": "https://52zmrdv1g3.execute-api.localhost.localstack.cloud:4566/local/",
+		"TableName": "earthquake-events"
+	}
+}

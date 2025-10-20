@@ -14,6 +14,7 @@ export class EarthquakeDataStack extends cdk.Stack {
 	public readonly table: dynamodb.Table;
 	public readonly ingestFunction: NodejsFunction;
 	public readonly queryFunction: NodejsFunction;
+	public readonly analyticsFunction: NodejsFunction;
 	public readonly api: apigateway.RestApi;
 
 	constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -45,6 +46,8 @@ export class EarthquakeDataStack extends cdk.Stack {
 			timeout: cdk.Duration.seconds(30),
 			environment: {
 				TABLE_NAME: this.table.tableName,
+				USGS_API_URL:
+					"https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&orderby=time&limit=100",
 				AWS_NODEJS_CONNECTION_REUSE_ENABLED: "1",
 			},
 			bundling: {
@@ -86,6 +89,28 @@ export class EarthquakeDataStack extends cdk.Stack {
 		this.table.grantReadData(this.queryFunction);
 		this.table.grantWriteData(this.queryFunction);
 
+		this.analyticsFunction = new NodejsFunction(this, "AnalyticsFunction", {
+			entry: path.join(
+				__dirname,
+				"../../../../packages/services/analytics-service/src/index.ts",
+			),
+			handler: "handler",
+			runtime: lambda.Runtime.NODEJS_20_X,
+			timeout: cdk.Duration.seconds(30),
+			environment: {
+				TABLE_NAME: this.table.tableName,
+				AWS_NODEJS_CONNECTION_REUSE_ENABLED: "1",
+			},
+			bundling: {
+				minify: true,
+				sourceMap: true,
+				target: "es2020",
+				externalModules: ["@aws-sdk/*"],
+			},
+		});
+
+		this.table.grantReadData(this.analyticsFunction);
+
 		this.api = new apigateway.RestApi(this, "IngestApi", {
 			restApiName: "USGS Earthquake Ingestion Service",
 			deployOptions: {
@@ -104,6 +129,13 @@ export class EarthquakeDataStack extends cdk.Stack {
 		);
 		const earthquakes = this.api.root.addResource("earthquakes");
 		earthquakes.addMethod("GET", queryIntegration);
+
+		const analyticsIntegration = new apigateway.LambdaIntegration(
+			this.analyticsFunction,
+		);
+		const analytics = this.api.root.addResource("analytics");
+		const popularFilters = analytics.addResource("popular-filters");
+		popularFilters.addMethod("GET", analyticsIntegration);
 
 		new cdk.CfnOutput(this, "ApiEndpoint", {
 			value: this.api.url,

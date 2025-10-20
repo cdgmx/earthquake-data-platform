@@ -1,0 +1,85 @@
+import type { QueryRequestLog } from "@earthquake/schemas";
+import { aggregateLogs, limitResults } from "./aggregator.js";
+import type { AnalyticsRepository } from "./repository.js";
+import type { AnalyticsResponse, FilterStats } from "./schemas.js";
+
+interface ServiceParams {
+	repository: AnalyticsRepository;
+}
+
+interface GetPopularFiltersParams {
+	startDay: string;
+	endDay: string;
+	windowDays: number;
+	limit: number;
+}
+
+export interface AnalyticsService {
+	getPopularFilters(
+		params: GetPopularFiltersParams,
+	): Promise<AnalyticsResponse>;
+}
+
+export function createAnalyticsService({
+	repository,
+}: ServiceParams): AnalyticsService {
+	async function getPopularFilters(
+		params: GetPopularFiltersParams,
+	): Promise<AnalyticsResponse> {
+		const { startDay, endDay, windowDays, limit } = params;
+
+		const dayBuckets = generateDayBuckets(startDay, windowDays);
+		const allLogs = await collectLogsFromDayBuckets(dayBuckets, repository);
+
+		const aggregated = aggregateLogs(allLogs);
+		const limited = limitResults(aggregated, limit);
+
+		return {
+			window: {
+				startDay,
+				endDay,
+			},
+			filters: limited,
+			totalRequests: allLogs.length,
+		};
+	}
+
+	return {
+		getPopularFilters,
+	};
+}
+
+async function collectLogsFromDayBuckets(
+	dayBuckets: string[],
+	repository: AnalyticsRepository,
+): Promise<QueryRequestLog[]> {
+	const allLogs: QueryRequestLog[] = [];
+
+	for (const dayBucket of dayBuckets) {
+		try {
+			const logs = await repository.queryLogsByDay({ dayBucket });
+			allLogs.push(...logs);
+		} catch (error) {
+			
+		}
+	}
+
+	return allLogs;
+}
+
+function generateDayBuckets(startDay: string, windowDays: number): string[] {
+	const buckets: string[] = [];
+	const startDate = new Date(startDay);
+
+	for (let daysBack = 0; daysBack < windowDays; daysBack++) {
+		const currentDate = new Date(startDate);
+		currentDate.setUTCDate(startDate.getUTCDate() - daysBack);
+		
+		const isoDate = currentDate.toISOString().slice(0, 10);
+		const bucket = isoDate.replace(/-/g, "");
+		
+		buckets.push(bucket);
+	}
+
+	return buckets;
+}
