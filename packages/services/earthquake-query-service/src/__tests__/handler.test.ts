@@ -101,4 +101,38 @@ describe("handler integration", () => {
 			expect(body.nextToken).toBeUndefined();
 		});
 	});
+
+	describe("configuration errors", () => {
+		it("should return 503 when TABLE_NAME is missing", async () => {
+			delete process.env.TABLE_NAME;
+
+			const event = mockEvent({
+				starttime: "2025-10-15T00:00:00Z",
+				endtime: "2025-10-16T00:00:00Z",
+				minmagnitude: "3.0",
+			});
+
+			const result = await handler(event);
+
+			expect(result.statusCode).toBe(503);
+			const body = JSON.parse(result.body);
+			expect(body.error).toBe("DATABASE_UNAVAILABLE");
+		});
+
+		it("should return 503 when NEXT_TOKEN_SECRET is missing", async () => {
+			delete process.env.NEXT_TOKEN_SECRET;
+
+			const event = mockEvent({
+				starttime: "2025-10-15T00:00:00Z",
+				endtime: "2025-10-16T00:00:00Z",
+				minmagnitude: "3.0",
+			});
+
+			const result = await handler(event);
+
+			expect(result.statusCode).toBe(503);
+			const body = JSON.parse(result.body);
+			expect(body.error).toBe("DATABASE_UNAVAILABLE");
+		});
+	});
 });

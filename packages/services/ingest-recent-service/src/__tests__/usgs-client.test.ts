@@ -3,6 +3,9 @@ import { fetchRecentEarthquakes } from "../usgs-client.js";
 
 global.fetch = vi.fn();
 
+const TEST_USGS_URL =
+	"https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&orderby=time&limit=100";
+
 describe("usgs-client", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -103,11 +106,9 @@ describe("usgs-client", () => {
 			json: async () => mockResponse,
 		} as Response);
 
-		const usgsUrl =
-			"https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&orderby=time&limit=100";
-		const result = await fetchRecentEarthquakes(usgsUrl);
+		const result = await fetchRecentEarthquakes(TEST_USGS_URL);
 
-		expect(global.fetch).toHaveBeenCalledWith(usgsUrl);
+		expect(global.fetch).toHaveBeenCalledWith(TEST_USGS_URL);
 		expect(result.data).toEqual(mockResponse);
 		expect(result.retries).toBe(0);
 	});
@@ -136,15 +137,13 @@ describe("usgs-client", () => {
 			} as Response);
 
 		const startTime = Date.now();
-		const result = await fetchRecentEarthquakes();
+		const result = await fetchRecentEarthquakes(TEST_USGS_URL);
 		const elapsed = Date.now() - startTime;
 
 		expect(result.retries).toBe(2);
 		expect(result.data).toEqual(mockResponse);
-		// With jitter (±25%), minimum delay is (1000 + 2000) * 0.75 = 2250ms
 		expect(elapsed).toBeGreaterThanOrEqual(2250);
 	});
-
 	it("should throw after exhausting retries", async () => {
 		(global.fetch as ReturnType<typeof vi.fn>)
 			.mockRejectedValueOnce(new Error("Network error"))
@@ -152,7 +151,7 @@ describe("usgs-client", () => {
 			.mockRejectedValueOnce(new Error("Network error"))
 			.mockRejectedValueOnce(new Error("Network error"));
 
-		await expect(fetchRecentEarthquakes()).rejects.toThrow();
+		await expect(fetchRecentEarthquakes(TEST_USGS_URL)).rejects.toThrow();
 	}, 10000);
 
 	it("should retry on 429 rate limit errors", async () => {
@@ -181,7 +180,7 @@ describe("usgs-client", () => {
 				json: async () => mockResponse,
 			} as Response);
 
-		const result = await fetchRecentEarthquakes();
+		const result = await fetchRecentEarthquakes(TEST_USGS_URL);
 
 		expect(result.retries).toBe(1);
 		expect(result.data).toEqual(mockResponse);

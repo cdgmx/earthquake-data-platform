@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import "dotenv/config";
 import * as cdk from "aws-cdk-lib";
 import { EarthquakeDataStack } from "../lib/stacks/earthquake-data-stack.js";
 

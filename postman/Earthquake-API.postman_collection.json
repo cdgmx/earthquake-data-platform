@@ -745,7 +745,12 @@
 	"variable": [
 		{
 			"key": "baseUrl",
-			"value": "http://localhost:4566/restapis/YOUR_API_ID/local/_user_request_",
+			"value": "https://{{apiId}}.execute-api.localhost.localstack.cloud:4566/local",
+			"type": "string"
+		},
+		{
+			"key": "apiId",
+			"value": "52zmrdv1g3",
 			"type": "string"
 		},
 		{

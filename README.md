@@ -1,144 +1,89 @@
-# Earthquake Monorepo
+# Earthquake Data Platform
 
-A Turborepo-powered monorepo for earthquake monitoring and visualization with Next.js, React 19, TypeScript 5, and Tailwind CSS 4.
+Turborepo monorepo with LocalStack-deployed AWS infrastructure (API Gateway, Lambda, DynamoDB) and Next.js admin dashboard.
 
-## 📦 Structure
-
-\`\`\`
-earthquake-monorepo/
-├── apps/
-│   ├── infra/            # AWS CDK stacks targeting LocalStack
-│   └── web/              # Next.js 15 earthquake monitoring app
-├── packages/
-│   ├── earthquakes/      # Domain logic, API clients, schemas
-│   ├── libs/             # Shared libraries (errors, dynamo-client, observability)
-│   ├── schemas/          # Shared schema definitions
-│   ├── services/         # Lambda services (ingest-recent-service, earthquake-query-service)
-│   ├── ui/               # Shared UI components (shadcn/ui based)
-│   └── utils/            # Shared utility helpers and structured logging
-├── specs/                # Feature specifications and runbooks
-├── turbo.json            # Turborepo pipeline configuration
-├── pnpm-workspace.yaml   # pnpm workspace configuration
-└── package.json          # Root workspace manifest
-\`\`\`
+**Stack:** TypeScript 5, Node.js 20, AWS CDK v2, Next.js 15, React 19, Tailwind CSS 4, Vitest, Biome.
 
 ## 🚀 Quick Start
 
-### Prerequisites
+**Prerequisites:** Node.js 20+, pnpm 10.18.2+, Docker Desktop, [LocalStack Pro auth token](https://app.localstack.cloud)
 
-- Node.js 20+ 
-- pnpm 10.18.2+
-
-### Installation
-
-\`\`\`bash
-# Install dependencies
+```bash
+# Install
 pnpm install
 
-# Start development server (all apps)
-pnpm dev
+# Configure environment (add LOCALSTACK_AUTH_TOKEN and NEXT_TOKEN_SECRET)
+cp .env.example .env
 
-# Start dev server for specific app
-cd apps/web && pnpm dev
-\`\`\`
-
-### Building
-
-\`\`\`bash
-# Build all apps and packages
-pnpm build
-
-# Build specific app
-cd apps/web && pnpm build
-\`\`\`
-
-## 🌐 LocalStack Pro Setup
-
-The infrastructure for this project uses LocalStack Pro to emulate AWS services locally. This enables:
-
-- **Local development** without AWS account
-- **Fast iteration** with instant deployments
-- **Cost-effective** testing of serverless applications
-- **Reproducible** infrastructure across team members
-
-### Prerequisites
-
-- Docker Desktop installed and running
-- LocalStack Pro auth token ([get one here](https://app.localstack.cloud))
-- Node.js 20 LTS and pnpm 10.18.2+
-
-### Quick Start (15 minutes)
-
-**Full instructions**: See [LocalStack CDK Quickstart](./specs/002-localstack-cdk-infra/quickstart.md)
-
-\`\`\`bash
-# 1. Set your LocalStack Pro token
-export LOCALSTACK_AUTH_TOKEN="your-token-here"
-
-# 2. Verify apps/infra/.env targets LocalStack (http://localhost:4566)
-#    (repo ships with defaults; adjust if needed)
-
-# 3. Start LocalStack
+# Deploy infrastructure to LocalStack
 pnpm local:up
-
-# 4. Bootstrap CDK environment (first time only)
 pnpm infra:bootstrap
-
-# 5. Deploy infrastructure
 pnpm infra:deploy
 
-# 6. Test the API (see quickstart.md for details)
-\`\`\`
+# Test endpoints
+curl -X POST "$(jq -r '.IngestApi.ApiEndpoint' apps/infra/outputs.json)ingest/recent"
+curl "$(jq -r '.IngestApi.ApiEndpoint' apps/infra/outputs.json)earthquakes"
 
-### Infrastructure Commands
+# Start Next.js admin dashboard
+pnpm --filter @earthquake/web dev
 
-\`\`\`bash
-pnpm local:up           # Start LocalStack container
-pnpm local:down         # Stop LocalStack container
-pnpm infra:bootstrap    # Bootstrap CDK environment (once)
-pnpm infra:deploy       # Deploy infrastructure stack
-pnpm infra:diff         # Preview infrastructure changes
-pnpm infra:destroy      # Destroy infrastructure stack
-pnpm infra:synth        # Generate CloudFormation templates
-\`\`\`
+# Tear down
+pnpm infra:destroy
+pnpm local:down
+```
 
-### What Gets Deployed
+## 📦 Structure
 
-- **Lambda Functions** (Node.js 20.x): Earthquake ingestion and query services
-- **DynamoDB Table**: Single table design for earthquake events and request logs
-- **CloudWatch Logs**: Automatic logging for Lambda invocations
-- **EventBridge Scheduler**: Periodic USGS data ingestion
+```
+apps/
+  infra/              # CDK stacks (API Gateway, Lambda, DynamoDB, CloudWatch)
+  web/                # Next.js 15 admin dashboard
+packages/
+  earthquakes/        # Domain logic, USGS client, normalization
+  env/                # Environment validation
+  schemas/            # Zod schemas and shared types
+  libs/
+    dynamo-client/    # Single-table DynamoDB wrapper
+    errors/           # Structured error types
+    observability/    # CloudWatch logging
+  services/
+    analytics-service/          # Lambda: popular filter analytics
+    earthquake-query-service/   # Lambda: query + pagination
+    ingest-recent-service/      # Lambda: USGS ingestion
+  ui/                 # shadcn/ui React components
+  utils/              # Pure utility helpers
+specs/                # Feature plans and runbooks
+```
 
-### Infrastructure as Code
+## 🛠️ Commands
 
-Infrastructure is defined in \`apps/infra/\` using:
+```bash
+pnpm dev              # Start all dev servers
+pnpm build            # Build workspace
+pnpm lint             # Biome linter (auto-fix)
+pnpm test             # Vitest suite
+pnpm test:watch       # Watch mode
+pnpm coverage         # Coverage report
+pnpm clean            # Remove build artifacts
 
-- **AWS CDK v2**: Infrastructure as TypeScript code
-- **cdklocal**: LocalStack-aware CDK wrapper
-- **NodejsFunction**: Automatic TypeScript bundling for Lambda
+# Infrastructure
+pnpm local:up         # Start LocalStack
+pnpm local:down       # Stop LocalStack
+pnpm infra:bootstrap  # CDK bootstrap
+pnpm infra:deploy     # Deploy stack
+pnpm infra:destroy    # Tear down stack
+pnpm infra:diff       # Preview changes
+pnpm infra:synth      # Generate CloudFormation
+```
 
-See [specs/002-localstack-cdk-infra/quickstart.md](./specs/002-localstack-cdk-infra/quickstart.md) for detailed infrastructure documentation.
+## 🏗️ Architecture
 
-## � Documentation
+### Deployed Components (LocalStack)
 
-- **[Logging & Error Handling](./docs/LOGGING_AND_ERROR_HANDLING.md)**: Structured logging patterns, AppError usage, and CloudWatch Insights queries
-
-## �📝 Scripts
-
-Available at the root level (runs across all packages via Turbo):
-
-\`\`\`bash
-pnpm dev         # Start development servers
-pnpm build       # Build all apps and packages
-pnpm lint        # Run Biome linter (with auto-fix)
-pnpm format      # Format code with Biome
-pnpm check       # Run Biome checks (CI mode, no fixes)
-pnpm test        # Run all tests
-pnpm test:watch  # Run tests in watch mode
-pnpm test:ui     # Run tests with UI
-pnpm coverage    # Generate test coverage reports
-pnpm clean       # Remove build artifacts and node_modules
-\`\`\`
+- **API Gateway (REST)**: `/ingest/recent`, `/earthquakes`, `/analytics/popular-filters`
+- **Lambda Functions** (Node.js 20.x): Ingestion, query, analytics handlers
+- **DynamoDB**: Single-table design with GSI for time-ordered queries, TTL on logs
+- **CloudWatch Logs**: Structured logs from all Lambdas
 
 ```mermaid
 C4Context
@@ -146,7 +91,7 @@ title Earthquake Data Platform — System Context (MVP with Admin SPA)
 
 %% Left-to-right for stable layout
 Person(admin, "Admin", "Views data/analytics; runs dev tools")
-System(spa, "Admin Dashboard (Next.js on Vercel)", "Admin-only UI for data, analytics, throttling sims")
+System(spa, "Admin Dashboard (Next.js 15)", "Admin-only UI for data and analytics workflows")
 System_Ext(usgs, "USGS FDSN Event API", "Earthquake catalog (GeoJSON)")
 
 System_Boundary(sys, "Earthquake Data Platform") {
@@ -172,28 +117,31 @@ UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
 
 Person(admin, "Admin", "Operates dashboard")
 
-System(spa, "Admin Dashboard (Next.js on Vercel)", "Data/analytics/dev tools")
+System(spa, "Admin Dashboard (Next.js 15)", "Data/analytics/dev tools")
 
 System_Boundary(platform, "Earthquake Data Platform") {
-  Container(apigw, "API Gateway (REST API)", "Managed Gateway", "Routing; per-method & per-client throttling via usage plans; request validation; X-Ray")
-  Container(apiFn, "API Lambda", "AWS Lambda (TypeScript/Fastify)", "Business logic; filters; pagination (LEK tokens)")
-  ContainerDb(db, "DynamoDB (single table)", "NoSQL", "earthquake events + request logs; GSI1 time-ordered; TTL on logs")
-  Container(scheduler, "EventBridge Scheduler", "Managed Cron", "Triggers periodic ingestion")
-  Container(ingFn, "Ingestion Lambda", "AWS Lambda (TypeScript)", "FDSN fetch; idempotent upserts")
-  Container(obs, "CloudWatch Logs / X-Ray", "Observability", "Structured logs; traces; metrics")
+  Container(apigw, "API Gateway (REST)", "Managed Gateway", "Routes REST calls to Lambda handlers")
+  Container(queryFn, "Query Lambda", "AWS Lambda (TypeScript)", "Validates inputs, queries DynamoDB, issues pagination tokens")
+  Container(analyticsFn, "Analytics Lambda", "AWS Lambda (TypeScript)", "Aggregates request logs for popular filters")
+  Container(ingFn, "Ingestion Lambda", "AWS Lambda (TypeScript)", "Fetches USGS feed and upserts events")
+  ContainerDb(db, "DynamoDB (single table)", "NoSQL", "Earthquake events + request logs; GSI1 time-ordered; TTL on logs")
+  Container(obs, "CloudWatch Logs", "Observability", "Structured logs from each Lambda")
 }
 
 System_Ext(usgs, "USGS FDSN Event API", "GeoJSON search")
 
 Rel(admin, spa, "Use", "HTTPS")
 Rel(spa, apigw, "Invoke endpoints", "HTTPS / JSON")
-Rel(apigw, apiFn, "Lambda proxy", "IAM")
-Rel(apiFn, db, "Query/Write items", "AWS SDK v3")
-Rel(apiFn, obs, "Logs/Traces")
-Rel(scheduler, ingFn, "Invoke on schedule", "Event")
-Rel(ingFn, usgs, "query?orderby=time&limit=...", "HTTP GET")
-Rel(ingFn, db, "Upsert events", "AWS SDK v3")
-Rel(apigw, obs, "Stage traces (X-Ray)")
+Rel(apigw, queryFn, "Proxy /earthquakes", "IAM")
+Rel(apigw, analyticsFn, "Proxy /analytics/popular-filters", "IAM")
+Rel(apigw, ingFn, "Proxy /ingest/recent", "IAM")
+Rel(queryFn, db, "Query + log requests", "AWS SDK v3")
+Rel(analyticsFn, db, "Read request logs", "AWS SDK v3")
+Rel(ingFn, db, "Upsert events + ingestion logs", "AWS SDK v3")
+Rel(queryFn, obs, "Write structured logs")
+Rel(analyticsFn, obs, "Write structured logs")
+Rel(ingFn, obs, "Write structured logs")
+Rel(ingFn, usgs, "Fetch recent events", "HTTP GET")
 
 ```
 ```mermaid
@@ -202,190 +150,94 @@ title Earthquake Data Platform — Component Diagram (REST, single table)
 
 Person(client, "Admin Dashboard / Tester", "Calls platform API via HTTPS")
 System_Ext(usgs, "USGS FDSN Event API", "GeoJSON")
-ContainerDb(dynamo, "DynamoDB (single table)", "NoSQL", "events + request_logs; TTL on logs; GSI1 time-ordered")
-Container(apigw, "API Gateway (REST)", "Gateway", "Usage plans; request validation; authorizers; X-Ray")
-Container(obs, "CloudWatch Logs / X-Ray", "Observability", "Structured logs; traces")
-Container(scheduler, "EventBridge Scheduler", "Managed Cron", "Triggers ingestion")
+ContainerDb(dynamo, "DynamoDB (single table)", "NoSQL", "Earthquake events + request logs; TTL on logs; GSI1 time-ordered")
+Container(apigw, "API Gateway (REST)", "Gateway", "Proxies REST calls to Lambda functions")
+Container(obs, "CloudWatch Logs", "Observability", "Structured logs; ingestion summaries")
 
-Container_Boundary(apiB, "Earthquake Data API (Lambda + Fastify)") {
-  Container(apiFn, "API Function", "Lambda", "Executes handlers; reserved concurrency cap")
-  Component(router, "HTTP Router", "Fastify", "Endpoints & middleware")
-  Component(validator, "Zod / JSON Schema", "TypeScript", "App-level validation")
-  Component(mapper, "DTO Mapper", "TypeScript", "Response shaping")
-  Component(lek, "LEK Token Codec", "TypeScript", "Signs/encodes LastEvaluatedKey")
-  Component(qsvc, "QueryService", "TypeScript", "Composes DynamoDB queries/filters")
-  Component(analytics, "AnalyticsService", "TypeScript", "Aggregates request logs by day")
-  Component(eqRepo, "EarthquakeRepository", "AWS SDK v3", "Table + GSI access")
-  Component(logRepo, "RequestLogRepository", "AWS SDK v3", "Write logs with TTL")
+Container_Boundary(queryB, "Query Lambda") {
+  Container(queryFn, "Query Handler", "Lambda", "Processes GET /earthquakes requests")
+  Component(paramValidator, "Query Validator", "TypeScript + custom guards", "Validates and normalizes query params")
+  Component(cursorCodec, "Cursor Codec", "TypeScript", "Encodes/decodes NextToken payloads")
+  Component(queryService, "QueryService", "TypeScript", "Builds DynamoDB queries and aggregates results")
+  Component(requestLogger, "RequestLogWriter", "AWS SDK v3", "Persists request metrics with TTL")
 }
 
-Container_Boundary(ingB, "Ingestion (Lambda)") {
-  Container(ingFn, "Ingestion Function", "Lambda", "Runs on schedule and on demand")
-  Component(fdsn, "FDSNClient", "HTTP", "orderby=time&limit=n with backoff")
-  Component(parser, "GeoJSON Normalizer", "TypeScript", "Map to internal model")
-  Component(upsert, "UpsertService", "TypeScript", "Idempotent upserts by eventId")
+Container_Boundary(analyticsB, "Analytics Lambda") {
+  Container(analyticsFn, "Analytics Handler", "Lambda", "Calculates popular filter combinations")
+  Component(analyticsValidator, "Analytics Validator", "Zod", "Validates day/window query params")
+  Component(analyticsService, "AnalyticsService", "TypeScript", "Aggregates request log partitions")
+  Component(analyticsRepo, "AnalyticsRepository", "AWS SDK v3", "Reads request logs from DynamoDB")
 }
 
-Rel(client, apigw, "GET /earthquakes, GET /metrics, POST /ingest/recent", "HTTPS / JSON")
-Rel(apigw, apiFn, "Invoke (Lambda proxy)", "IAM; usage plan throttles")
-Rel(apigw, ingFn, "Invoke /ingest/recent", "JWT authorizer")
-Rel(apiFn, router, "Handle")
-Rel(router, validator, "Validate")
-Rel(router, qsvc, "Query earthquakes")
-Rel(router, analytics, "Query request analytics")
-Rel(qsvc, lek, "Encode/Decode")
-Rel(qsvc, eqRepo, "Read/Write")
-Rel(analytics, logRepo, "Read aggregates")
-Rel(apiFn, dynamo, "Query/Write")
-Rel(apiFn, obs, "Logs/Traces")
+Container_Boundary(ingB, "Ingestion Lambda") {
+  Container(ingFn, "Ingestion Handler", "Lambda", "Processes POST /ingest/recent")
+  Component(fdsn, "USGS Client", "TypeScript + Fetch", "Calls FDSN feed with retries")
+  Component(normalizer, "GeoJSON Normalizer", "TypeScript", "Maps FDSN payload to internal event model")
+  Component(upsert, "UpsertService", "TypeScript", "Performs idempotent writes using DynamoDB")
+  Component(ingestRepo, "IngestionRepository", "AWS SDK v3", "Writes normalized earthquake events")
+  Component(ingestLogWriter, "IngestionLogWriter", "AWS SDK v3", "Persists ingestion request metrics with TTL")
+}
 
-Rel(scheduler, ingFn, "Invoke on schedule", "Event")
-Rel(ingFn, fdsn, "Fetch", "HTTP GET")
-Rel(ingFn, parser, "Parse/Normalize")
-Rel(parser, upsert, "Upserts")
-Rel(ingFn, dynamo, "Write")
-Rel(ingFn, obs, "Logs/Traces")
+Rel(client, apigw, "GET /earthquakes, GET /analytics/popular-filters, POST /ingest/recent", "HTTPS / JSON")
+Rel(apigw, queryFn, "Invoke (Lambda proxy)", "IAM")
+Rel(apigw, analyticsFn, "Invoke (Lambda proxy)", "IAM")
+Rel(apigw, ingFn, "Invoke (Lambda proxy)", "IAM")
+Rel(queryFn, paramValidator, "Validate")
+Rel(paramValidator, cursorCodec, "Derive pagination context")
+Rel(paramValidator, queryService, "Pass validated filters")
+Rel(queryService, requestLogger, "Write request metadata")
+Rel(queryService, dynamo, "Query results")
+Rel(requestLogger, dynamo, "Write request logs")
+Rel(queryFn, obs, "Emit structured logs")
+Rel(analyticsFn, analyticsValidator, "Validate analytics params")
+Rel(analyticsValidator, analyticsService, "Pass validated window")
+Rel(analyticsService, analyticsRepo, "Read request logs")
+Rel(analyticsService, dynamo, "Aggregate from request log items")
+Rel(analyticsFn, obs, "Emit structured logs")
+Rel(ingFn, fdsn, "Fetch recent events", "HTTP GET")
+Rel(ingFn, normalizer, "Normalize payload")
+Rel(normalizer, upsert, "Build upsert input")
+Rel(upsert, ingestRepo, "Write earthquake events")
+Rel(ingFn, ingestLogWriter, "Record request summary")
+Rel(ingestRepo, dynamo, "Write event items")
+Rel(ingestLogWriter, dynamo, "Write request log items")
+Rel(ingFn, obs, "Emit structured logs")
 ```
-## 📂 Workspace Packages
+
+## 📂 Packages
 
 ### Apps
 
-- **\`@earthquake/web\`** (\`apps/web/\`)  
-  Next.js 15 app router application for earthquake monitoring. Uses Turbopack for fast dev builds. Consumes shared packages from the monorepo.
+- **`@earthquake/web`** – Next.js 15 admin dashboard (Turbopack, React 19)
+- **`@earthquake/infra`** – CDK stacks for LocalStack deployment
 
-### Packages
+### Domain & Schemas
 
-- **\`@earthquake/ui\`** (\`packages/ui/\`)  
-  Shared React UI components built with shadcn/ui, Radix UI primitives, and Tailwind CSS. Components are consumed directly as source (transpiled by Next.js).
+- **`@earthquake/earthquakes`** – USGS client, normalization, filtering logic
+- **`@earthquake/schemas`** – Zod schemas and shared types
+- **`@earthquake/env`** – Environment validation
 
-- **\`@earthquake/utils\`** (\`packages/utils/\`)  
-  Shared utility functions (e.g., \`cn\` for className merging with clsx and tailwind-merge).
+### Services (Lambda)
 
-- **\`@earthquake/earthquakes\`** (\`packages/earthquakes/\`)  
-  Domain-specific logic for earthquake data:
-  - API clients (USGS feed integration)
-  - Data schemas (Zod)
-  - Normalization and filtering logic
-  - React hooks for earthquake data management
+- **`@earthquake/ingest-recent-service`** – Fetch and ingest USGS data
+- **`@earthquake/earthquake-query-service`** – Query + pagination
+- **`@earthquake/analytics-service`** – Popular filter analytics
 
-## 🏗️ Turborepo Pipeline
+### Libraries
 
-Configured in \`turbo.json\`:
+- **`@earthquake/dynamo-client`** – Single-table DynamoDB wrapper
+- **`@earthquake/errors`** – Structured error types
+- **`@earthquake/observability`** – CloudWatch structured logging
 
-- **\`build\`**: Builds apps/packages. Outputs: \`.next/**\`, \`dist/**\`
-- **\`dev\`**: Runs development servers (not cached, persistent)
-- **\`lint\`**: Lints code with Biome
-- **\`test\`**: Runs tests with Vitest. Outputs: \`coverage/**\`
-- **\`format\`**: Formats code (not cached)
+### UI & Utilities
 
-### Caching
-
-Turborepo automatically caches build outputs locally. Remote caching is disabled by default but can be enabled:
-
-\`\`\`bash
-# Link to Vercel for remote caching (optional)
-turbo login
-turbo link
-\`\`\`
-
-## 🧪 Testing
-
-Tests are run with Vitest. Currently located in \`apps/web/__tests__/\`.
-
-\`\`\`bash
-# Run all tests
-pnpm test
-
-# Run tests in watch mode
-pnpm test:watch
-
-# Run with coverage
-pnpm coverage
-\`\`\`
-
-## �� Code Style
-
-- **Linter/Formatter**: Biome (configured via \`biome.json\`)
-- **TypeScript**: Strict mode enabled
-- **Import Strategy**: 
-  - \`@earthquake/*\` for workspace packages
-  - \`@/*\` for app-local imports (apps/web only)
-
-## 🔧 Development Notes
-
-### Adding a New Package
-
-1. Create directory under \`packages/\`
-2. Add \`package.json\` with:
-   \`\`\`json
-   {
-     "name": "@earthquake/your-package",
-     "version": "0.0.0",
-     "private": true,
-     "exports": { ".": "./src/index.ts" }
-   }
-   \`\`\`
-3. Run \`pnpm install\` from root to link
-4. Import in apps: \`import { ... } from "@earthquake/your-package"\`
-
-### Adding a New App
-
-1. Create directory under \`apps/\`
-2. Add \`package.json\` with workspace dependencies:
-   \`\`\`json
-   {
-     "dependencies": {
-       "@earthquake/ui": "workspace:*"
-     }
-   }
-   \`\`\`
-3. Configure in \`turbo.json\` if custom pipeline needed
-
-### Transpiling Packages in Next.js
-
-Shared packages are consumed as source (not pre-built) and transpiled by Next.js via the \`transpilePackages\` option in \`next.config.ts\`:
-
-\`\`\`ts
-transpilePackages: ["@earthquake/ui", "@earthquake/earthquakes"]
-\`\`\`
-
-This avoids the need to build packages during development.
+- **`@earthquake/ui`** – shadcn/ui React components
+- **`@earthquake/utils`** – Pure utility helpers
 
 ## 📊 Quality Gates
 
-| Gate | Command | Status |
-|------|---------|--------|
-| **Build** | \`pnpm build\` | ✅ PASS |
-| **Lint** | \`pnpm lint\` | ✅ PASS |
-| **Tests** | \`pnpm test\` | ✅ PASS |
-
-## 🔮 Future Improvements
-
-- [ ] **Remote Caching**: Set up Vercel or self-hosted remote caching for CI/CD speedup
-- [ ] **Package Publishing**: Add build scripts (tsup/tsc) to compile packages to \`dist/\` for publishing
-- [ ] **Storybook**: Add Storybook for UI component development and documentation
-- [ ] **E2E Tests**: Add Playwright or Cypress for end-to-end testing
-- [ ] **Changesets**: Implement changeset-based versioning and release workflow
-- [ ] **Docker**: Add Dockerfile for production deployment (using \`turbo prune\`)
-- [ ] **CI/CD**: Add GitHub Actions workflow for automated testing and deployment
-- [ ] **Pre-commit Hooks**: Add Husky/lint-staged for automated linting before commits
-
-## 📚 Resources
-
-- [Turborepo Documentation](https://turbo.build/repo/docs)
-- [pnpm Workspaces](https://pnpm.io/workspaces)
-- [Next.js App Router](https://nextjs.org/docs/app)
-- [Biome](https://biomejs.dev/)
-
-## 🤝 Contributing
-
-1. Install dependencies: \`pnpm install\`
-2. Create a feature branch: \`git checkout -b feature/your-feature\`
-3. Make changes and test: \`pnpm test && pnpm build\`
-4. Run linter: \`pnpm lint\`
-5. Commit and push changes
-6. Open a pull request
-
-## 📄 License
-
-Private project. All rights reserved.
+| Command | Purpose |
+|---------|---------|
+| `pnpm build` | Compile all workspace targets |
+| `pnpm lint` | Biome checks (required for merge) |
+| `pnpm test` | Vitest suite + optional coverage |

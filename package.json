@@ -20,14 +20,14 @@
 		"test:watch": "turbo run test:watch",
 		"test:ui": "turbo run test:ui",
 		"coverage": "turbo run coverage",
-		"clean": "turbo run clean && rm -rf node_modules",
+		"clean": "sh -c \"turbo run clean && rm -rf node_modules\"",
 		"local:up": "docker compose --profile localstack up -d",
 		"local:down": "docker compose --profile localstack down",
-		"infra:bootstrap": "cd apps/infra && cdklocal bootstrap",
-		"infra:deploy": "cd apps/infra && cdklocal deploy --all --require-approval never",
-		"infra:diff": "cd apps/infra && cdklocal diff",
-		"infra:destroy": "cd apps/infra && cdklocal destroy --all --force",
-		"infra:synth": "cd apps/infra && cdklocal synth"
+		"infra:bootstrap": "dotenv -e .env -- pnpm --dir apps/infra cdklocal bootstrap",
+		"infra:deploy": "dotenv -e .env -- pnpm --dir apps/infra cdklocal deploy --all --require-approval never",
+		"infra:diff": "dotenv -e .env -- pnpm --dir apps/infra cdklocal diff",
+		"infra:destroy": "dotenv -e .env -- pnpm --dir apps/infra cdklocal destroy --all --force",
+		"infra:synth": "dotenv -e .env -- pnpm --dir apps/infra cdklocal synth"
 	},
 	"dependencies": {},
 	"devDependencies": {
@@ -41,6 +41,7 @@
 		"@types/react-dom": "^19",
 		"@vitejs/plugin-react": "^5.0.4",
 		"@vitest/coverage-v8": "^1.6.0",
+		"dotenv": "^16.6.1",
 		"jsdom": "^27.0.0",
 		"tailwindcss": "^4",
 		"turbo": "^2.3.3",
