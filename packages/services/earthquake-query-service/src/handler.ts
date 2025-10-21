@@ -40,9 +40,27 @@ export async function handler(
 	const logger = baseLogger.withCorrelationId(requestId);
 
 	try {
-		const rawParams = event.queryStringParameters || {};
+		const rawParams = event.queryStringParameters;
+		if (!rawParams) {
+			const errorResponse: ErrorResponse = {
+				error: "VALIDATION_ERROR",
+				message: "Missing query parameters",
+				details: {},
+			};
+			const latencyMs = Date.now() - startTime;
+			logger.warn("Missing query parameters", {
+				status: 400,
+				latencyMs,
+				error: "VALIDATION_ERROR",
+			});
 
-		// If nextToken is provided, restore parameters from cursor
+			return {
+				statusCode: 400,
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(errorResponse),
+			};
+		}
+
 		let params: Record<string, string | number | undefined>;
 		if (rawParams.nextToken) {
 			try {
@@ -74,18 +92,23 @@ export async function handler(
 				};
 			}
 		} else {
+			let minmagnitude: number | undefined;
+			if (rawParams.minmagnitude) {
+				minmagnitude = Number.parseFloat(rawParams.minmagnitude);
+			}
+
+			let pageSize: number | undefined;
+			if (rawParams.pageSize) {
+				pageSize = Number.parseInt(rawParams.pageSize, 10);
+			}
+
 			params = {
 				starttime: rawParams.starttime,
 				endtime: rawParams.endtime,
-				minmagnitude: rawParams.minmagnitude
-					? Number.parseFloat(rawParams.minmagnitude)
-					: undefined,
-				pageSize: rawParams.pageSize
-					? Number.parseInt(rawParams.pageSize, 10)
-					: undefined,
+				minmagnitude,
+				pageSize,
 			};
 
-			// Convert epoch ms strings to numbers if they're numeric
 			if (
 				typeof params.starttime === "string" &&
 				/^\d+$/.test(params.starttime)
@@ -131,10 +154,11 @@ export async function handler(
 
 		const response: QueryResponse = {
 			items: result.items,
-			...(result.nextCursor
-				? { nextToken: encodeCursor(result.nextCursor, nextTokenSecret) }
-				: {}),
 		};
+
+		if (result.nextCursor) {
+			response.nextToken = encodeCursor(result.nextCursor, nextTokenSecret);
+		}
 
 		const latencyMs = Date.now() - startTime;
 

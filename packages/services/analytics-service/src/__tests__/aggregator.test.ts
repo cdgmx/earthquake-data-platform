@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { LogType, type QueryRequestLog } from "@earthquake/schemas";
+import { describe, expect, it } from "vitest";
 import { aggregateLogs, limitResults } from "../aggregator.js";
 
 describe("aggregator", () => {
@@ -60,9 +60,33 @@ describe("aggregator", () => {
 	describe("limitResults", () => {
 		it("limits results to specified count", () => {
 			const stats = [
-				{ starttime: 1, endtime: 2, minmagnitude: 3, pageSize: 100, hits: 10, hasNextTokenCount: 5, avgResultCount: 15 },
-				{ starttime: 2, endtime: 3, minmagnitude: 4, pageSize: 200, hits: 8, hasNextTokenCount: 3, avgResultCount: 12 },
-				{ starttime: 3, endtime: 4, minmagnitude: 5, pageSize: 300, hits: 6, hasNextTokenCount: 2, avgResultCount: 10 },
+				{
+					starttime: 1,
+					endtime: 2,
+					minmagnitude: 3,
+					pageSize: 100,
+					hits: 10,
+					hasNextTokenCount: 5,
+					avgResultCount: 15,
+				},
+				{
+					starttime: 2,
+					endtime: 3,
+					minmagnitude: 4,
+					pageSize: 200,
+					hits: 8,
+					hasNextTokenCount: 3,
+					avgResultCount: 12,
+				},
+				{
+					starttime: 3,
+					endtime: 4,
+					minmagnitude: 5,
+					pageSize: 300,
+					hits: 6,
+					hasNextTokenCount: 2,
+					avgResultCount: 10,
+				},
 			];
 
 			const result = limitResults(stats, 2);
@@ -72,7 +96,15 @@ describe("aggregator", () => {
 
 		it("returns all if limit exceeds array length", () => {
 			const stats = [
-				{ starttime: 1, endtime: 2, minmagnitude: 3, pageSize: 100, hits: 10, hasNextTokenCount: 5, avgResultCount: 15 },
+				{
+					starttime: 1,
+					endtime: 2,
+					minmagnitude: 3,
+					pageSize: 100,
+					hits: 10,
+					hasNextTokenCount: 5,
+					avgResultCount: 15,
+				},
 			];
 
 			const result = limitResults(stats, 10);

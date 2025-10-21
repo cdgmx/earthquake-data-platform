@@ -59,7 +59,11 @@ export function createQueryService({
 
 		for (let i = startIdx; i < buckets.length; i++) {
 			const dayBucket = buckets[i];
-			const exclusiveStartKey = i === startIdx ? cursor?.lek : undefined;
+
+			let exclusiveStartKey: Record<string, unknown> | undefined;
+			if (i === startIdx && cursor?.lek) {
+				exclusiveStartKey = cursor.lek;
+			}
 
 			const result = await repository.queryDayBucket({
 				dayBucket,
