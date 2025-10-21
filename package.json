@@ -24,13 +24,15 @@
 		"clean": "sh -c \"turbo run clean && rm -rf node_modules\"",
 		"local:up": "docker compose --profile localstack up -d",
 		"local:down": "docker compose --profile localstack down",
-		"infra:bootstrap": "dotenv -e .env -- pnpm --dir apps/infra cdklocal bootstrap",
-		"infra:deploy": "dotenv -e .env -- pnpm --dir apps/infra cdklocal deploy --all --require-approval never",
-		"infra:diff": "dotenv -e .env -- pnpm --dir apps/infra cdklocal diff",
-		"infra:destroy": "dotenv -e .env -- pnpm --dir apps/infra cdklocal destroy --all --force",
-		"infra:synth": "dotenv -e .env -- pnpm --dir apps/infra cdklocal synth"
+		"infra:bootstrap": "dotenv -e .env -- sh -c 'cd apps/infra && pnpm exec cdklocal bootstrap'",
+		"infra:deploy": "dotenv -e .env -- sh -c 'cd apps/infra && pnpm exec cdklocal deploy --all --require-approval never'",
+		"infra:diff": "dotenv -e .env -- sh -c 'cd apps/infra && pnpm exec cdklocal diff'",
+		"infra:destroy": "dotenv -e .env -- sh -c 'cd apps/infra && pnpm exec cdklocal destroy --all --force'",
+		"infra:synth": "dotenv -e .env -- sh -c 'cd apps/infra && pnpm exec cdklocal synth'"
 	},
-	"dependencies": {},
+	"dependencies": {
+		"dotenv-cli": "^10.0.0"
+	},
 	"devDependencies": {
 		"@biomejs/biome": "2.2.6",
 		"@tailwindcss/postcss": "^4",

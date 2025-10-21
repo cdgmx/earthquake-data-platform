@@ -3,10 +3,9 @@ import {
 	formatOccurredAt,
 } from "@earthquake/earthquakes/earthquakes/format";
 import type { ApiEarthquakeItem } from "@earthquake/earthquakes/types/api";
-
-import { TableCell, TableRow } from "@earthquake/ui/table";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { TableCell, TableRow } from "@/components/ui/table";
 
 type EarthquakeRowProps = {
 	item: ApiEarthquakeItem;

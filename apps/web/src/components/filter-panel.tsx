@@ -1,10 +1,10 @@
 "use client";
 
 import type { EarthquakeFilters } from "@earthquake/earthquakes/earthquakes/use-earthquake-filters";
-
-import { Button } from "@earthquake/ui/button";
-import { Input } from "@earthquake/ui/input";
-import { Label } from "@earthquake/ui/label";
+import { useId, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
 	Sheet,
 	SheetContent,
@@ -12,9 +12,8 @@ import {
 	SheetHeader,
 	SheetTitle,
 	SheetTrigger,
-} from "@earthquake/ui/sheet";
-import { Slider } from "@earthquake/ui/slider";
-import { useId, useState } from "react";
+} from "@/components/ui/sheet";
+import { Slider } from "@/components/ui/slider";
 
 interface FilterPanelProps {
 	filters: EarthquakeFilters;
@@ -81,7 +80,9 @@ const FilterContent = ({
 						type="text"
 						placeholder="Search by place name..."
 						value={filters.placeSearch}
-						onChange={(e) => onFiltersChange({ placeSearch: e.target.value })}
+						onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+							onFiltersChange({ placeSearch: e.target.value })
+						}
 					/>
 				</div>
 
@@ -125,7 +126,7 @@ const FilterContent = ({
 							id={startDateId}
 							type="date"
 							value={filters.startDate ?? ""}
-							onChange={(e) =>
+							onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
 								onFiltersChange({
 									startDate: e.target.value.length > 0 ? e.target.value : null,
 								})
@@ -138,7 +139,7 @@ const FilterContent = ({
 							id={endDateId}
 							type="date"
 							value={filters.endDate ?? ""}
-							onChange={(e) =>
+							onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
 								onFiltersChange({
 									endDate: e.target.value.length > 0 ? e.target.value : null,
 								})

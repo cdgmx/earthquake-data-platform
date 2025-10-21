@@ -1,11 +1,19 @@
 "use client";
 
-import { Button } from "@earthquake/ui/button";
+import type { ApiEarthquakeItem } from "@earthquake/schemas";
 import type { ColumnDef } from "@tanstack/react-table";
 import { parseISO } from "date-fns";
 import Link from "next/link";
-import type { ApiEarthquakeItem } from "../types/api";
+import { cn } from "../utils";
 import { formatMagnitude, formatOccurredAt } from "./format";
+
+const actionButtonBase =
+	"inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0";
+const actionButtonSmall = "h-8 rounded-md px-3 text-xs";
+const outlineActionButton =
+	"border border-[hsl(var(--color-input))] bg-[hsl(var(--color-background))] shadow-sm hover:bg-[hsl(var(--color-accent))] hover:text-[hsl(var(--color-accent-foreground))]";
+const ghostActionButton =
+	"hover:bg-[hsl(var(--color-accent))] hover:text-[hsl(var(--color-accent-foreground))]";
 
 export const createEarthquakeColumns = (): ColumnDef<ApiEarthquakeItem>[] => {
 	return [
@@ -109,18 +117,28 @@ export const createEarthquakeColumns = (): ColumnDef<ApiEarthquakeItem>[] => {
 			cell: ({ row }) => {
 				return (
 					<div className="flex gap-2">
-						<Button variant="outline" size="sm" asChild>
-							<Link href={`/earthquakes/${row.original.id}`}>Details</Link>
-						</Button>
-						<Button variant="ghost" size="sm" asChild>
-							<Link
-								href={row.original.detailUrl}
-								target="_blank"
-								rel="noreferrer"
-							>
-								USGS ↗
-							</Link>
-						</Button>
+						<Link
+							className={cn(
+								actionButtonBase,
+								actionButtonSmall,
+								outlineActionButton,
+							)}
+							href={`/earthquakes/${row.original.id}`}
+						>
+							Details
+						</Link>
+						<Link
+							className={cn(
+								actionButtonBase,
+								actionButtonSmall,
+								ghostActionButton,
+							)}
+							href={row.original.detailUrl}
+							target="_blank"
+							rel="noreferrer"
+						>
+							USGS ↗
+						</Link>
 					</div>
 				);
 			},

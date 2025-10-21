@@ -7,13 +7,12 @@ import {
 	formatOccurredAt,
 } from "@earthquake/earthquakes/earthquakes/format";
 import type { ApiEarthquakesOk } from "@earthquake/earthquakes/types/api";
-
-import { Alert, AlertDescription, AlertTitle } from "@earthquake/ui/alert";
-import { Button } from "@earthquake/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@earthquake/ui/card";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const resolveOriginFromHeaders = (
 	hdrs: Awaited<ReturnType<typeof headers>>,
