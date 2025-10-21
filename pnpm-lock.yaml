@@ -38,6 +38,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^1.6.0
         version: 1.6.1(vitest@1.6.1(@types/node@20.19.21)(jsdom@27.0.0(postcss@8.5.6))(lightningcss@1.30.1))
+      dotenv:
+        specifier: ^16.6.1
+        version: 16.6.1
       jsdom:
         specifier: ^27.0.0
         version: 27.0.0(postcss@8.5.6)
@@ -65,9 +68,6 @@ importers:
       constructs:
         specifier: ^10.0.0
         version: 10.4.2
-      dotenv:
-        specifier: ^16.4.7
-        version: 16.6.1
     devDependencies:
       '@types/node':
         specifier: ^20.17.9
@@ -2528,9 +2528,11 @@ packages:
   dom-accessibility-api@0.6.3:
     resolution: {integrity: sha512-7ZgogeTnjuHbo+ct10G9Ffp0mif17idi0IyWNVA/wcwcm7NPOD/WEHVP3n7n3MhXqxoIYm8d6MuZohYWIZ4T3w==}
 
+
   dotenv@16.6.1:
     resolution: {integrity: sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow==}
     engines: {node: '>=12'}
+
 
   eastasianwidth@0.2.0:
     resolution: {integrity: sha512-I88TYZWc9XiYHRQ4/3c5rjjfgkjhLyW2luGIheGERbNQ6OY7yTybanSpDXZa8y7VUP9YmDcYa+eyq4ca7iLqWA==}
