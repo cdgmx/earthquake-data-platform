@@ -9,9 +9,9 @@ import type { z } from "zod";
  * @param schema The Zod object schema to validate against.
  * @returns A read-only object with the validated environment variables.
  */
-export function getRuntimeEnv<T extends z.ZodObject<z.ZodRawShape>>(
-	schema: T,
-): Readonly<z.infer<T>> {
+export function getRuntimeEnv<T extends z.ZodRawShape>(
+	schema: z.ZodObject<T>,
+): Readonly<z.output<z.ZodObject<T>>> {
 	const parsed = schema.strict().safeParse(
 		Object.fromEntries(
 			Object.keys(schema.shape).map((key) => {
@@ -30,5 +30,5 @@ export function getRuntimeEnv<T extends z.ZodObject<z.ZodRawShape>>(
 		throw new Error(message);
 	}
 
-	return Object.freeze(parsed.data) as Readonly<z.infer<T>>;
+	return Object.freeze(parsed.data) as Readonly<z.output<z.ZodObject<T>>>;
 }

@@ -35,15 +35,25 @@ function buildStatsMap(
 
 		const current = statsMap.get(key);
 		if (!current) {
+			let hasNextTokenCount = 0;
+			if (log.hasNextToken) {
+				hasNextTokenCount = 1;
+			}
+
 			statsMap.set(key, {
 				hits: 1,
-				hasNextTokenCount: log.hasNextToken ? 1 : 0,
+				hasNextTokenCount,
 				totalResultCount: log.resultCount,
 			});
 		} else {
+			let hasNextTokenIncrement = 0;
+			if (log.hasNextToken) {
+				hasNextTokenIncrement = 1;
+			}
+
 			statsMap.set(key, {
 				hits: current.hits + 1,
-				hasNextTokenCount: current.hasNextTokenCount + (log.hasNextToken ? 1 : 0),
+				hasNextTokenCount: current.hasNextTokenCount + hasNextTokenIncrement,
 				totalResultCount: current.totalResultCount + log.resultCount,
 			});
 		}
@@ -59,14 +69,17 @@ function convertMapToResults(
 
 	for (const [keyStr, acc] of statsMap) {
 		const key = parseFilterKey(keyStr);
-		
+
 		let avgResultCount = 0;
 		if (acc.hits > 0) {
 			avgResultCount = acc.totalResultCount / acc.hits;
 		}
-		
+
 		results.push({
-			...key,
+			starttime: key.starttime,
+			endtime: key.endtime,
+			minmagnitude: key.minmagnitude,
+			pageSize: key.pageSize,
 			hits: acc.hits,
 			hasNextTokenCount: acc.hasNextTokenCount,
 			avgResultCount,

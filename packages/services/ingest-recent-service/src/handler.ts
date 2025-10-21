@@ -53,8 +53,11 @@ async function ingestEarthquakeData(
 				docClient: docClient,
 				tableName: TABLE_NAME,
 			});
-			if (result === "inserted") upserted++;
-			else skipped++;
+			if (result === "inserted") {
+				upserted++;
+			} else {
+				skipped++;
+			}
 		} catch (error) {
 			logger.warn(
 				`Failed to insert event ${earthquakeEvent.eventId}: ${error instanceof Error ? error.message : String(error)}`,

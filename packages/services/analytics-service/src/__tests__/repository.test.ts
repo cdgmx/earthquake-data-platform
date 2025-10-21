@@ -1,5 +1,6 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import type { DynamoDocClient } from "@earthquake/dynamo-client";
 import { LogType, type QueryRequestLog } from "@earthquake/schemas";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createRepository } from "../repository.js";
 
 vi.mock("@earthquake/dynamo-client", () => ({
@@ -21,7 +22,7 @@ describe("repository", () => {
 			});
 
 			const repository = createRepository({
-				docClient: {} as any,
+				docClient: {} as unknown as DynamoDocClient,
 				tableName: "test-table",
 			});
 
@@ -51,7 +52,7 @@ describe("repository", () => {
 				});
 
 			const repository = createRepository({
-				docClient: {} as any,
+				docClient: {} as unknown as DynamoDocClient,
 				tableName: "test-table",
 			});
 
@@ -68,7 +69,7 @@ describe("repository", () => {
 			});
 
 			const repository = createRepository({
-				docClient: {} as any,
+				docClient: {} as unknown as DynamoDocClient,
 				tableName: "test-table",
 			});
 

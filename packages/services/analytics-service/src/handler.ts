@@ -6,7 +6,6 @@ import { createLogger } from "@earthquake/utils";
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { env } from "./env.js";
 import { createRepository } from "./repository.js";
-import type { AnalyticsResponse, ErrorResponse } from "./schemas.js";
 import { QueryParamsSchema } from "./schemas.js";
 import { createAnalyticsService } from "./service.js";
 
@@ -49,8 +48,7 @@ export async function handler(
 
 		const validationResult = QueryParamsSchema.safeParse(rawParams);
 		if (!validationResult.success) {
-			const firstError = validationResult.error.errors[0];
-			const errorMessage = firstError?.message;
+			const errorMessage = validationResult.error.message;
 			if (!errorMessage) {
 				throw new AppError({
 					code: ERROR_CODES.VALIDATION_ERROR,
@@ -58,6 +56,7 @@ export async function handler(
 					httpStatus: 400,
 				});
 			}
+
 			throw new AppError({
 				code: ERROR_CODES.VALIDATION_ERROR,
 				message: errorMessage,
@@ -105,7 +104,10 @@ export async function handler(
 
 		let errorDetails: { message: string; name: string } | string;
 		if (error instanceof Error) {
-			errorDetails = { message: error.message, name: error.name };
+			errorDetails = {
+				message: error.message,
+				name: error.name,
+			};
 		} else {
 			errorDetails = String(error);
 		}

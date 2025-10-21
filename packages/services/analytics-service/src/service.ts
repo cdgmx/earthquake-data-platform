@@ -1,7 +1,7 @@
 import type { QueryRequestLog } from "@earthquake/schemas";
 import { aggregateLogs, limitResults } from "./aggregator.js";
 import type { AnalyticsRepository } from "./repository.js";
-import type { AnalyticsResponse, FilterStats } from "./schemas.js";
+import type { AnalyticsResponse } from "./schemas.js";
 
 interface ServiceParams {
 	repository: AnalyticsRepository;
@@ -60,7 +60,11 @@ async function collectLogsFromDayBuckets(
 			const logs = await repository.queryLogsByDay({ dayBucket });
 			allLogs.push(...logs);
 		} catch (error) {
-			
+			const errorMessage =
+				error instanceof Error ? error.message : String(error);
+			throw new Error(
+				`Failed to query logs for day bucket ${dayBucket}: ${errorMessage}`,
+			);
 		}
 	}
 
@@ -74,10 +78,10 @@ function generateDayBuckets(startDay: string, windowDays: number): string[] {
 	for (let daysBack = 0; daysBack < windowDays; daysBack++) {
 		const currentDate = new Date(startDate);
 		currentDate.setUTCDate(startDate.getUTCDate() - daysBack);
-		
+
 		const isoDate = currentDate.toISOString().slice(0, 10);
 		const bucket = isoDate.replace(/-/g, "");
-		
+
 		buckets.push(bucket);
 	}
 
