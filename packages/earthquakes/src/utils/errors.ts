@@ -1,4 +1,4 @@
-import type { ApiError, ApiErrorCode } from "../types/api";
+import type { ApiError, ApiErrorCode } from "@earthquake/schemas";
 
 interface ErrorMapping {
 	statusCode: number;
@@ -20,6 +20,21 @@ const ERROR_MAPPINGS: Record<ApiErrorCode, ErrorMapping> = {
 		statusCode: 500,
 		defaultMessage:
 			"An unexpected error occurred while processing the request.",
+	},
+	VALIDATION_ERROR: {
+		statusCode: 400,
+		defaultMessage:
+			"The request parameters are invalid. Please check your input and try again.",
+	},
+	DATABASE_UNAVAILABLE: {
+		statusCode: 503,
+		defaultMessage:
+			"The database is currently unavailable. Please try again later.",
+	},
+	INFRASTRUCTURE_NOT_READY: {
+		statusCode: 503,
+		defaultMessage:
+			"The service infrastructure is not ready. Please try again in a moment.",
 	},
 };
 

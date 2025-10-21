@@ -1,92 +1,126 @@
-import {
-	ApiClientError,
-	fetchEarthquakesFromApi,
-} from "@earthquake/earthquakes/earthquakes/api-client";
 import { formatOccurredAt } from "@earthquake/earthquakes/earthquakes/format";
-import type {
-	ApiEarthquakesOk,
-	ApiError,
-} from "@earthquake/earthquakes/types/api";
-import { normalizeErrorDetails } from "@earthquake/earthquakes/utils/errors";
-import { Card, CardContent, CardHeader, CardTitle } from "@earthquake/ui/card";
+import type { ApiEarthquakeItem } from "@earthquake/schemas";
 import { headers } from "next/headers";
 import type { ReactNode } from "react";
+import { BackendFilterPanel } from "@/components/backend-filter-panel";
 import { EarthquakeStatus } from "@/components/earthquake-status";
-import { EarthquakeTable } from "@/components/earthquake-table";
+import { EarthquakeDataTable } from "@/components/earthquakes/earthquake-data-table";
+import { PopularFilters } from "@/components/popular-filters";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-type ErrorWithStatus = ApiError & { statusCode: number };
+interface PageProps {
+	searchParams: Promise<{
+		starttime?: string;
+		endtime?: string;
+		minmagnitude?: string;
+		pageSize?: string;
+		nextToken?: string;
+	}>;
+}
 
-const resolveOriginFromHeaders = (
-	hdrs: Awaited<ReturnType<typeof headers>>,
-) => {
-	const forwarded = hdrs.get("x-forwarded-proto");
-	let proto = "http";
-	if (typeof forwarded === "string" && forwarded.length > 0) {
-		const first = forwarded.split(",")[0];
-		if (first.length > 0) proto = first;
-	}
+export default async function EarthquakesPage({ searchParams }: PageProps) {
+	const params = await searchParams;
+	const hdrs = await headers();
 
-	let host = hdrs.get("host");
-	if (host === null || host.length === 0) {
-		host = "localhost:3000";
-	}
+	const now = Date.now();
+	const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
 
-	return `${proto}://${host}`;
-};
+	const starttime = params.starttime || String(sevenDaysAgo);
+	const endtime = params.endtime || String(now);
+	const minmagnitude = params.minmagnitude || "0";
+	const pageSize = params.pageSize || "50";
+	const nextToken = params.nextToken;
 
-const buildForwardHeadersFrom = (hdrs: Awaited<ReturnType<typeof headers>>) => {
-	const out: Record<string, string> = {};
-	const cookie = hdrs.get("cookie");
-	if (typeof cookie === "string" && cookie.length > 0) out.cookie = cookie;
-
-	const authorization = hdrs.get("authorization");
-	if (typeof authorization === "string" && authorization.length > 0)
-		out.authorization = authorization;
-
-	const protectionBypass = hdrs.get("x-vercel-protection-bypass");
-	if (typeof protectionBypass === "string" && protectionBypass.length > 0)
-		out["x-vercel-protection-bypass"] = protectionBypass;
-
-	return out;
-};
-
-export default async function EarthquakesPage() {
-	let data: ApiEarthquakesOk | undefined;
-	let error: ErrorWithStatus | undefined;
+	let data:
+		| {
+				items: ApiEarthquakeItem[];
+				nextToken?: string;
+				updatedAt: string;
+		  }
+		| undefined;
+	let error:
+		| {
+				statusCode: number;
+				code: string;
+				message: string;
+		  }
+		| undefined;
 
 	try {
-		const hdrs = await headers();
-		const origin = resolveOriginFromHeaders(hdrs);
-		const forwardHeaders = buildForwardHeadersFrom(hdrs);
-		data = await fetchEarthquakesFromApi(origin, { headers: forwardHeaders });
-	} catch (err) {
-		if (err instanceof ApiClientError) {
+		const protocol = hdrs.get("x-forwarded-proto") || "http";
+		const host = hdrs.get("host") || "localhost:3000";
+		const origin = `${protocol}://${host}`;
+
+		const queryParams = new URLSearchParams({
+			starttime,
+			endtime,
+			minmagnitude,
+			pageSize,
+		});
+
+		if (nextToken) {
+			queryParams.set("nextToken", nextToken);
+		}
+
+		const url = `${origin}/api/backend-earthquakes?${queryParams.toString()}`;
+
+		const response = await fetch(url, {
+			cache: "no-store",
+			headers: {
+				cookie: hdrs.get("cookie") || "",
+			},
+		});
+
+		const payload = await response.json();
+
+		if (response.ok && payload.status === "ok") {
+			data = payload;
+		} else if (payload.code) {
 			error = {
-				statusCode: err.statusCode,
-				...err.body,
+				statusCode: response.status,
+				code: payload.code,
+				message: payload.message,
 			};
 		} else {
 			error = {
-				statusCode: 500,
-				status: "error",
-				code: "INTERNAL_ERROR",
-				message: "Unexpected error while loading earthquake data.",
-				details: normalizeErrorDetails(err),
+				statusCode: response.status,
+				code: "UNKNOWN_ERROR",
+				message: "An unexpected error occurred",
 			};
 		}
+	} catch (err) {
+		error = {
+			statusCode: 500,
+			code: "INTERNAL_ERROR",
+			message: err instanceof Error ? err.message : "Internal server error",
+		};
 	}
 
-	let items = [] as ApiEarthquakesOk["items"];
-	if (data !== undefined) items = data.items;
+	const items = data?.items || [];
 
 	let cardContent: ReactNode = null;
 	let headerMeta: ReactNode = null;
 
-	if (error !== undefined) {
+	if (error) {
 		cardContent = (
-			<EarthquakeStatus status="error" error={error} retryHref="/earthquakes" />
+			<EarthquakeStatus
+				status="error"
+				error={{
+					statusCode: error.statusCode,
+					status: "error",
+					code: error.code as
+						| "INVALID_UPSTREAM_RESPONSE"
+						| "UPSTREAM_UNAVAILABLE"
+						| "INTERNAL_ERROR"
+						| "VALIDATION_ERROR"
+						| "DATABASE_UNAVAILABLE"
+						| "INFRASTRUCTURE_NOT_READY",
+					message: error.message,
+				}}
+				retryHref="/earthquakes"
+			/>
 		);
-	} else if (data === undefined) {
+	} else if (!data) {
 		cardContent = <EarthquakeStatus status="loading" rows={4} />;
 	} else if (items.length === 0) {
 		cardContent = (
@@ -97,7 +131,9 @@ export default async function EarthquakesPage() {
 			/>
 		);
 	} else {
-		cardContent = <EarthquakeTable items={items} />;
+		cardContent = (
+			<EarthquakeDataTable data={items} nextToken={data.nextToken} />
+		);
 		const formatted = formatOccurredAt(data.updatedAt);
 		headerMeta = (
 			<span className="text-sm font-normal text-[hsl(var(--color-muted-foreground))]">
@@ -114,15 +150,19 @@ export default async function EarthquakesPage() {
 						Latest Earthquakes
 					</h1>
 					<p className="text-[hsl(var(--color-muted-foreground))]">
-						Data refreshed weekly from the USGS feed and validated through the
-						internal API proxy.
+						Query earthquake data from our backend API with custom filters,
+						sorting, and pagination.
 					</p>
 				</header>
+
+				<PopularFilters />
+
+				<BackendFilterPanel />
 
 				<Card>
 					<CardHeader>
 						<CardTitle className="flex flex-wrap items-baseline justify-between gap-3">
-							<span>Weekly activity</span>
+							<span>Earthquake Results</span>
 							{headerMeta}
 						</CardTitle>
 					</CardHeader>

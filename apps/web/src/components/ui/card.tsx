@@ -1,5 +1,6 @@
-import { cn } from "@earthquake/utils";
 import * as React from "react";
+
+import { cn } from "@/lib/utils";
 
 const Card = React.forwardRef<
 	HTMLDivElement,
@@ -8,7 +9,7 @@ const Card = React.forwardRef<
 	<div
 		ref={ref}
 		className={cn(
-			"rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-card))] text-[hsl(var(--color-card-foreground))] shadow",
+			"rounded-xl border bg-card text-card-foreground shadow",
 			className,
 		)}
 		{...props}
@@ -46,10 +47,7 @@ const CardDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
 	<div
 		ref={ref}
-		className={cn(
-			"text-sm text-[hsl(var(--color-muted-foreground))]",
-			className,
-		)}
+		className={cn("text-sm text-muted-foreground", className)}
 		{...props}
 	/>
 ));

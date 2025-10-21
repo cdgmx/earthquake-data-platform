@@ -1,9 +1,9 @@
 import type { ApiError } from "@earthquake/earthquakes/types/api";
-import { Alert, AlertDescription, AlertTitle } from "@earthquake/ui/alert";
-import { Button } from "@earthquake/ui/button";
-import { Skeleton } from "@earthquake/ui/skeleton";
 import Link from "next/link";
 import type { JSX } from "react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type LoadingStatusProps = {
 	status: "loading";

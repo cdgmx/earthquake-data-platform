@@ -1,19 +1,19 @@
 "use client";
 
 import { createEarthquakeColumns } from "@earthquake/earthquakes/earthquakes/columns";
-import { filterEarthquakes } from "@earthquake/earthquakes/earthquakes/filter";
-import { useEarthquakeFilters } from "@earthquake/earthquakes/earthquakes/use-earthquake-filters";
 import type { ApiEarthquakeItem } from "@earthquake/earthquakes/types/api";
 import {
 	flexRender,
 	getCoreRowModel,
+	getPaginationRowModel,
 	getSortedRowModel,
 	type SortingState,
 	useReactTable,
 } from "@tanstack/react-table";
-import { parseAsString, useQueryState } from "nuqs";
-import { useMemo } from "react";
-import { FilterPanel } from "@/components/filter-panel";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
 	Table,
 	TableBody,
@@ -23,77 +23,54 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 
-type EarthquakeTableProps = {
-	items: ApiEarthquakeItem[];
-};
+interface PaginatedTableProps {
+	data: ApiEarthquakeItem[];
+	nextToken?: string;
+	totalCount?: number;
+}
 
-const EarthquakeTable = ({ items }: EarthquakeTableProps) => {
-	const { filters, setFilters, resetFilters } = useEarthquakeFilters();
-
-	const [sortField, setSortField] = useQueryState(
-		"sort",
-		parseAsString.withDefault("occurredAt"),
-	);
-	const [sortOrder, setSortOrder] = useQueryState(
-		"order",
-		parseAsString.withDefault("desc"),
-	);
-
-	const sorting: SortingState = useMemo(
-		() => [
-			{
-				id: sortField,
-				desc: sortOrder === "desc",
-			},
-		],
-		[sortField, sortOrder],
-	);
-
-	const onSortingChange = (
-		updaterOrValue: SortingState | ((old: SortingState) => SortingState),
-	) => {
-		const newSorting =
-			typeof updaterOrValue === "function"
-				? updaterOrValue(sorting)
-				: updaterOrValue;
-
-		if (newSorting.length > 0) {
-			const firstSort = newSorting[0];
-			if (firstSort.id !== undefined) {
-				setSortField(firstSort.id);
-				setSortOrder(firstSort.desc ? "desc" : "asc");
-			}
-		}
-	};
-
-	const filteredData = useMemo(
-		() => filterEarthquakes(items, filters),
-		[items, filters],
-	);
+export function PaginatedEarthquakeTable({
+	data,
+	nextToken,
+}: PaginatedTableProps) {
+	const router = useRouter();
+	const searchParams = useSearchParams();
+	const [sorting, setSorting] = useState<SortingState>([]);
 
 	const columns = useMemo(() => createEarthquakeColumns(), []);
 
 	const table = useReactTable({
-		data: filteredData,
+		data,
 		columns,
 		state: {
 			sorting,
 		},
-		onSortingChange,
+		onSortingChange: setSorting,
 		getCoreRowModel: getCoreRowModel(),
 		getSortedRowModel: getSortedRowModel(),
+		getPaginationRowModel: getPaginationRowModel(),
+		manualPagination: true,
 	});
 
-	return (
-		<div className="space-y-6">
-			<FilterPanel
-				filters={filters}
-				onFiltersChange={setFilters}
-				onReset={resetFilters}
-				totalItems={items.length}
-				filteredItems={filteredData.length}
-			/>
+	const handleNextPage = () => {
+		if (!nextToken) return;
 
+		const params = new URLSearchParams(searchParams.toString());
+		params.set("nextToken", nextToken);
+		router.push(`?${params.toString()}`);
+	};
+
+	const handlePreviousPage = () => {
+		const params = new URLSearchParams(searchParams.toString());
+		params.delete("nextToken");
+		router.push(`?${params.toString()}`);
+	};
+
+	const hasNextPage = Boolean(nextToken);
+	const hasPreviousPage = searchParams.has("nextToken");
+
+	return (
+		<div className="space-y-4">
 			<div className="overflow-x-auto rounded-md border">
 				<Table>
 					<TableHeader>
@@ -147,15 +124,39 @@ const EarthquakeTable = ({ items }: EarthquakeTableProps) => {
 									colSpan={columns.length}
 									className="h-24 text-center"
 								>
-									No earthquakes match your filters.
+									No earthquakes found.
 								</TableCell>
 							</TableRow>
 						)}
 					</TableBody>
 				</Table>
 			</div>
+
+			<div className="flex items-center justify-between px-2">
+				<div className="text-sm text-[hsl(var(--color-muted-foreground))]">
+					Showing {data.length} results
+				</div>
+				<div className="flex items-center gap-2">
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={handlePreviousPage}
+						disabled={!hasPreviousPage}
+					>
+						<ChevronLeft className="h-4 w-4 mr-1" />
+						Previous
+					</Button>
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={handleNextPage}
+						disabled={!hasNextPage}
+					>
+						Next
+						<ChevronRight className="h-4 w-4 ml-1" />
+					</Button>
+				</div>
+			</div>
 		</div>
 	);
-};
-
-export { EarthquakeTable };
+}
