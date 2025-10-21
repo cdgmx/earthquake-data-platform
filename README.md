@@ -6,6 +6,23 @@ Turborepo monorepo with LocalStack-deployed AWS infrastructure (API Gateway, Lam
 
 ## 🚀 Quick Start
 
+### Automated Setup (Recommended for New Developers)
+
+**Prerequisites:** Node.js 20+, pnpm 10.18.2+ (other checks done by script)
+
+```bash
+# Run interactive setup wizard
+pnpm setup
+
+# The script will:
+# - Check all prerequisites (Node, pnpm, Docker, etc.)
+# - Create and configure your .env file
+# - Install all dependencies
+# - Guide you through initial configuration
+```
+
+### Manual Setup
+
 **Prerequisites:** Node.js 20+, pnpm 10.18.2+, Docker Desktop, [LocalStack Pro auth token](https://app.localstack.cloud)
 
 ```bash
@@ -75,6 +92,13 @@ pnpm infra:destroy    # Tear down stack
 pnpm infra:diff       # Preview changes
 pnpm infra:synth      # Generate CloudFormation
 ```
+
+## 📖 Documentation
+
+- **[QUICKSTART.md](./QUICKSTART.md)** - One-page reference for new developers
+- **[SETUP.md](./SETUP.md)** - Comprehensive setup guide with troubleshooting
+- **[AGENTS.md](./AGENTS.md)** - Development guidelines and architecture principles
+- **[specs/](./specs/)** - Feature specifications and runbooks
 
 ## 🏗️ Architecture
 
