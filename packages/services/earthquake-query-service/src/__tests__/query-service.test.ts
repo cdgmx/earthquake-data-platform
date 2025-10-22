@@ -95,6 +95,90 @@ describe("query-service", () => {
 			};
 		}
 
+		describe("Inner Loop: Multiple Queries to Same Bucket", () => {
+			it("should query same bucket multiple times until exhausted when page not full", async () => {
+				const { service, queryDayBucket } = createServiceWithMock();
+
+				queryDayBucket
+					.mockResolvedValueOnce({
+						items: [
+							createMockEvent("evt1", 1760956800000, "20251020"),
+							createMockEvent("evt2", 1760956700000, "20251020"),
+						],
+						lastEvaluatedKey: { pk: "EVENT#evt2", sk: "METADATA", gsi1pk: "DAY#20251020", gsi1sk: 1760956700000 },
+					})
+					.mockResolvedValueOnce({
+						items: [
+							createMockEvent("evt3", 1760956600000, "20251020"),
+							createMockEvent("evt4", 1760956500000, "20251020"),
+						],
+						lastEvaluatedKey: { pk: "EVENT#evt4", sk: "METADATA", gsi1pk: "DAY#20251020", gsi1sk: 1760956500000 },
+					})
+					.mockResolvedValueOnce({
+						items: [
+							createMockEvent("evt5", 1760956400000, "20251020"),
+						],
+						lastEvaluatedKey: undefined,
+					})
+					.mockResolvedValue({
+						items: [],
+						lastEvaluatedKey: undefined,
+					});
+
+				const result = await service.executeQuery({
+					starttime: 1760697600000,
+					endtime: 1760956800000,
+					minmagnitude: 2.0,
+					pageSize: 10,
+				});
+
+				expect(result.items).toHaveLength(5);
+				
+				const calls = queryDayBucket.mock.calls;
+				expect(calls[0][0].dayBucket).toBe("20251020");
+				expect(calls[0][0].exclusiveStartKey).toBeUndefined();
+				
+				expect(calls[1][0].dayBucket).toBe("20251020");
+				expect(calls[1][0].exclusiveStartKey).toEqual({ pk: "EVENT#evt2", sk: "METADATA", gsi1pk: "DAY#20251020", gsi1sk: 1760956700000 });
+				
+				expect(calls[2][0].dayBucket).toBe("20251020");
+				expect(calls[2][0].exclusiveStartKey).toEqual({ pk: "EVENT#evt4", sk: "METADATA", gsi1pk: "DAY#20251020", gsi1sk: 1760956500000 });
+				
+				expect(calls.slice(0, 3).every(call => call[0].dayBucket === "20251020")).toBe(true);
+			});
+
+			it("should stop querying same bucket when page is full even if lastEvaluatedKey exists", async () => {
+				const { service, queryDayBucket } = createServiceWithMock();
+
+				queryDayBucket
+					.mockResolvedValueOnce({
+						items: Array.from({ length: 5 }, (_, i) =>
+							createMockEvent(`evt${i + 1}`, 1760956800000 - i * 1000, "20251020"),
+						),
+						lastEvaluatedKey: { pk: "EVENT#evt5", sk: "METADATA", gsi1pk: "DAY#20251020", gsi1sk: 1760956795000 },
+					})
+					.mockResolvedValueOnce({
+						items: Array.from({ length: 5 }, (_, i) =>
+							createMockEvent(`evt${i + 6}`, 1760956794000 - i * 1000, "20251020"),
+						),
+						lastEvaluatedKey: { pk: "EVENT#evt10", sk: "METADATA", gsi1pk: "DAY#20251020", gsi1sk: 1760956790000 },
+					});
+
+				const result = await service.executeQuery({
+					starttime: 1760697600000,
+					endtime: 1760956800000,
+					minmagnitude: 2.0,
+					pageSize: 10,
+				});
+
+				expect(result.items).toHaveLength(10);
+				expect(queryDayBucket).toHaveBeenCalledTimes(2);
+				expect(result.nextCursor).toBeDefined();
+				expect(result.nextCursor?.idx).toBe(0);
+				expect(result.nextCursor?.lek).toEqual({ pk: "EVENT#evt10", sk: "METADATA", gsi1pk: "DAY#20251020", gsi1sk: 1760956790000 });
+			});
+		});
+
 		describe("Edge Case: Bucket Exhaustion with Cursor Advancement", () => {
 			it("should advance to next bucket when current exhausted but pageSize not reached", async () => {
 				const { service, queryDayBucket } = createServiceWithMock();
