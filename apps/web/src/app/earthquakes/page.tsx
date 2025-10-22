@@ -8,6 +8,8 @@ import { EarthquakeDataTable } from "@/components/earthquakes/earthquake-data-ta
 import { PopularFilters } from "@/components/popular-filters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
+export const dynamic = "force-dynamic";
+
 interface PageProps {
 	searchParams: Promise<{
 		starttime?: string;

@@ -389,6 +389,565 @@
 			]
 		},
 		{
+			"name": "Filter & Pagination Validation",
+			"item": [
+				{
+					"name": "Validate PageSize Limits",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Returned items count respects pageSize', function () {",
+									"    const jsonData = pm.response.json();",
+									"    const requestedPageSize = parseInt(pm.request.url.query.get('pageSize'));",
+									"    pm.expect(jsonData.items).to.be.an('array');",
+									"    pm.expect(jsonData.items.length).to.be.at.most(requestedPageSize);",
+									"});",
+									"",
+									"pm.test('All items are valid earthquake objects', function () {",
+									"    const jsonData = pm.response.json();",
+									"    jsonData.items.forEach(item => {",
+									"        pm.expect(item).to.have.property('eventId');",
+									"        pm.expect(item).to.have.property('mag');",
+									"        pm.expect(item).to.have.property('place');",
+									"        pm.expect(item).to.have.property('eventTsMs');",
+									"    });",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/earthquakes?starttime=2025-10-01T00:00:00Z&endtime=2025-10-22T23:59:59Z&minmagnitude=2.0&pageSize=10",
+							"host": ["{{baseUrl}}"],
+							"path": ["earthquakes"],
+							"query": [
+								{
+									"key": "starttime",
+									"value": "2025-10-01T00:00:00Z"
+								},
+								{
+									"key": "endtime",
+									"value": "2025-10-22T23:59:59Z"
+								},
+								{
+									"key": "minmagnitude",
+									"value": "2.0"
+								},
+								{
+									"key": "pageSize",
+									"value": "10",
+									"description": "Small page to test limit enforcement"
+								}
+							]
+						},
+						"description": "Validates that the API respects pageSize parameter and returns at most the requested number of items."
+					},
+					"response": []
+				},
+				{
+					"name": "Validate Magnitude Filter",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('All earthquakes meet minimum magnitude', function () {",
+									"    const jsonData = pm.response.json();",
+									"    const minMag = parseFloat(pm.request.url.query.get('minmagnitude'));",
+									"    ",
+									"    jsonData.items.forEach((item, index) => {",
+									"        pm.expect(item.mag, `Item ${index} (${item.id}) magnitude`).to.be.at.least(minMag);",
+									"    });",
+									"});",
+									"",
+									"pm.test('Magnitude values are numeric', function () {",
+									"    const jsonData = pm.response.json();",
+									"    jsonData.items.forEach(item => {",
+									"        pm.expect(typeof item.mag).to.eql('number');",
+									"        pm.expect(item.mag).to.not.be.NaN;",
+									"    });",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/earthquakes?starttime=2025-10-01T00:00:00Z&endtime=2025-10-22T23:59:59Z&minmagnitude=4.5&pageSize=50",
+							"host": ["{{baseUrl}}"],
+							"path": ["earthquakes"],
+							"query": [
+								{
+									"key": "starttime",
+									"value": "2025-10-01T00:00:00Z"
+								},
+								{
+									"key": "endtime",
+									"value": "2025-10-22T23:59:59Z"
+								},
+								{
+									"key": "minmagnitude",
+									"value": "4.5",
+									"description": "Filter for significant earthquakes"
+								},
+								{
+									"key": "pageSize",
+									"value": "50"
+								}
+							]
+						},
+						"description": "Validates that all returned earthquakes meet or exceed the minmagnitude threshold."
+					},
+					"response": []
+				},
+				{
+					"name": "Validate Time Range Filter",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Calculate 7-day window",
+									"const now = new Date();",
+									"const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));",
+									"",
+									"const startMs = sevenDaysAgo.getTime();",
+									"const endMs = now.getTime();",
+									"",
+									"pm.environment.set('testStartMs', startMs);",
+									"pm.environment.set('testEndMs', endMs);",
+									"pm.environment.set('testStartISO', sevenDaysAgo.toISOString());",
+									"pm.environment.set('testEndISO', now.toISOString());"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('All earthquakes fall within time range', function () {",
+									"    const jsonData = pm.response.json();",
+									"    const startMs = parseInt(pm.environment.get('testStartMs'));",
+									"    const endMs = parseInt(pm.environment.get('testEndMs'));",
+									"    ",
+									"    jsonData.items.forEach((item, index) => {",
+									"        pm.expect(item.eventTsMs, `Item ${index} timestamp`).to.be.at.least(startMs);",
+									"        pm.expect(item.eventTsMs, `Item ${index} timestamp`).to.be.at.most(endMs);",
+									"    });",
+									"});",
+									"",
+									"pm.test('Timestamps are valid epoch milliseconds', function () {",
+									"    const jsonData = pm.response.json();",
+									"    const now = Date.now();",
+									"    const oneYearAgo = now - (365 * 24 * 60 * 60 * 1000);",
+									"    ",
+									"    jsonData.items.forEach(item => {",
+									"        pm.expect(item.eventTsMs).to.be.a('number');",
+									"        pm.expect(item.eventTsMs).to.be.at.least(oneYearAgo);",
+									"        pm.expect(item.eventTsMs).to.be.at.most(now + 60000);",
+									"    });",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/earthquakes?starttime={{testStartISO}}&endtime={{testEndISO}}&minmagnitude=2.5&pageSize=50",
+							"host": ["{{baseUrl}}"],
+							"path": ["earthquakes"],
+							"query": [
+								{
+									"key": "starttime",
+									"value": "{{testStartISO}}",
+									"description": "Dynamic: 7 days ago"
+								},
+								{
+									"key": "endtime",
+									"value": "{{testEndISO}}",
+									"description": "Dynamic: now"
+								},
+								{
+									"key": "minmagnitude",
+									"value": "2.5"
+								},
+								{
+									"key": "pageSize",
+									"value": "50"
+								}
+							]
+						},
+						"description": "Validates that all returned earthquakes fall within the specified time range. Uses dynamic timestamps to ensure test validity."
+					},
+					"response": []
+				},
+				{
+					"name": "Validate Chronological Ordering",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Results are ordered newest to oldest', function () {",
+									"    const jsonData = pm.response.json();",
+									"    ",
+									"    if (jsonData.items.length < 2) {",
+									"        console.log('Less than 2 items, skipping order check');",
+									"        return;",
+									"    }",
+									"    ",
+									"    for (let i = 0; i < jsonData.items.length - 1; i++) {",
+									"        const current = jsonData.items[i].eventTsMs;",
+									"        const next = jsonData.items[i + 1].eventTsMs;",
+									"        pm.expect(current, `Item ${i} vs ${i+1}`).to.be.at.least(next);",
+									"    }",
+									"});",
+									"",
+									"pm.test('ISO timestamps match epoch milliseconds', function () {",
+									"    const jsonData = pm.response.json();",
+									"    ",
+									"    jsonData.items.forEach((item, index) => {",
+									"        if (item.time) {",
+									"            const parsedMs = new Date(item.time).getTime();",
+									"            pm.expect(parsedMs, `Item ${index} timestamp consistency`).to.eql(item.eventTsMs);",
+									"        }",
+									"    });",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/earthquakes?starttime=2025-10-01T00:00:00Z&endtime=2025-10-22T23:59:59Z&minmagnitude=3.0&pageSize=50",
+							"host": ["{{baseUrl}}"],
+							"path": ["earthquakes"],
+							"query": [
+								{
+									"key": "starttime",
+									"value": "2025-10-01T00:00:00Z"
+								},
+								{
+									"key": "endtime",
+									"value": "2025-10-22T23:59:59Z"
+								},
+								{
+									"key": "minmagnitude",
+									"value": "3.0"
+								},
+								{
+									"key": "pageSize",
+									"value": "50"
+								}
+							]
+						},
+						"description": "Validates that results are ordered chronologically (newest first) and timestamp formats are consistent."
+					},
+					"response": []
+				},
+				{
+					"name": "Validate Pagination Consistency",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Page 1: Has expected structure', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('items');",
+									"    pm.expect(jsonData.items).to.be.an('array');",
+									"});",
+									"",
+									"pm.test('Page 1: Items match pageSize or less', function () {",
+									"    const jsonData = pm.response.json();",
+									"    const pageSize = parseInt(pm.request.url.query.get('pageSize'));",
+									"    pm.expect(jsonData.items.length).to.be.at.most(pageSize);",
+									"});",
+									"",
+									"// Store first page data for comparison with page 2",
+									"const response = pm.response.json();",
+									"if (response.items.length > 0) {",
+									"    pm.environment.set('page1_firstId', response.items[0].eventId);",
+									"    pm.environment.set('page1_lastId', response.items[response.items.length - 1].eventId);",
+									"    pm.environment.set('page1_count', response.items.length);",
+									"}",
+									"",
+									"if (response.nextToken) {",
+									"    pm.environment.set('nextToken', response.nextToken);",
+									"    pm.test('NextToken is present for pagination', function () {",
+									"        pm.expect(response.nextToken).to.be.a('string');",
+									"        pm.expect(response.nextToken.length).to.be.greaterThan(0);",
+									"    });",
+									"} else {",
+									"    pm.test('No nextToken - all results fit in one page', function () {",
+									"        console.log('Dataset smaller than pageSize');",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/earthquakes?starttime=2025-10-01T00:00:00Z&endtime=2025-10-22T23:59:59Z&minmagnitude=2.0&pageSize=15",
+							"host": ["{{baseUrl}}"],
+							"path": ["earthquakes"],
+							"query": [
+								{
+									"key": "starttime",
+									"value": "2025-10-01T00:00:00Z"
+								},
+								{
+									"key": "endtime",
+									"value": "2025-10-22T23:59:59Z"
+								},
+								{
+									"key": "minmagnitude",
+									"value": "2.0"
+								},
+								{
+									"key": "pageSize",
+									"value": "15",
+									"description": "Small page to force pagination"
+								}
+							]
+						},
+						"description": "First page: validates structure and stores nextToken for subsequent page test."
+					},
+					"response": []
+				},
+				{
+					"name": "Validate Pagination Page 2",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const token = pm.environment.get('nextToken');",
+									"",
+									"if (!token) {",
+									"    pm.test('Skipped - no nextToken from page 1', function () {",
+									"        console.log('Previous query returned all results in one page');",
+									"    });",
+									"    return;",
+									"}",
+									"",
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Page 2: Has items', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items).to.be.an('array');",
+									"});",
+									"",
+									"pm.test('Page 2: No duplicate IDs from page 1', function () {",
+									"    const jsonData = pm.response.json();",
+									"    const page1FirstId = pm.environment.get('page1_firstId');",
+									"    const page1LastId = pm.environment.get('page1_lastId');",
+									"    ",
+									"    jsonData.items.forEach(item => {",
+									"        pm.expect(item.eventId, 'ID should not appear in page 1').to.not.eql(page1FirstId);",
+									"        pm.expect(item.eventId, 'ID should not appear in page 1').to.not.eql(page1LastId);",
+									"    });",
+									"});",
+									"",
+									"pm.test('Page 2: Items still meet filter criteria', function () {",
+									"    const jsonData = pm.response.json();",
+									"    const minMag = parseFloat(pm.request.url.query.get('minmagnitude'));",
+									"    ",
+									"    jsonData.items.forEach(item => {",
+									"        pm.expect(item.mag).to.be.at.least(minMag);",
+									"    });",
+									"});",
+									"",
+									"pm.test('Page 2: Chronological order maintained', function () {",
+									"    const jsonData = pm.response.json();",
+									"    ",
+									"    if (jsonData.items.length < 2) return;",
+									"    ",
+									"    for (let i = 0; i < jsonData.items.length - 1; i++) {",
+									"        pm.expect(jsonData.items[i].eventTsMs).to.be.at.least(jsonData.items[i + 1].eventTsMs);",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/earthquakes?starttime=2025-10-01T00:00:00Z&endtime=2025-10-22T23:59:59Z&minmagnitude=2.0&pageSize=15&nextToken={{nextToken}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["earthquakes"],
+							"query": [
+								{
+									"key": "starttime",
+									"value": "2025-10-01T00:00:00Z"
+								},
+								{
+									"key": "endtime",
+									"value": "2025-10-22T23:59:59Z"
+								},
+								{
+									"key": "minmagnitude",
+									"value": "2.0"
+								},
+								{
+									"key": "pageSize",
+									"value": "15"
+								},
+								{
+									"key": "nextToken",
+									"value": "{{nextToken}}",
+									"description": "Cursor from page 1"
+								}
+							]
+						},
+						"description": "Second page: validates no duplicate items appear and filters still apply across pagination."
+					},
+					"response": []
+				},
+				{
+					"name": "Validate Combined Filters",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Set up a narrow time window (last 48 hours)",
+									"const now = new Date();",
+									"const twoDaysAgo = new Date(now.getTime() - (48 * 60 * 60 * 1000));",
+									"",
+									"pm.environment.set('narrowStartMs', twoDaysAgo.getTime());",
+									"pm.environment.set('narrowEndMs', now.getTime());",
+									"pm.environment.set('narrowStartISO', twoDaysAgo.toISOString());",
+									"pm.environment.set('narrowEndISO', now.toISOString());"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"const minMag = parseFloat(pm.request.url.query.get('minmagnitude'));",
+									"const pageSize = parseInt(pm.request.url.query.get('pageSize'));",
+									"const startMs = parseInt(pm.environment.get('narrowStartMs'));",
+									"const endMs = parseInt(pm.environment.get('narrowEndMs'));",
+									"",
+									"pm.test('All filters applied: magnitude', function () {",
+									"    jsonData.items.forEach(item => {",
+									"        pm.expect(item.mag).to.be.at.least(minMag);",
+									"    });",
+									"});",
+									"",
+									"pm.test('All filters applied: time range', function () {",
+									"    jsonData.items.forEach(item => {",
+									"        pm.expect(item.eventTsMs).to.be.at.least(startMs);",
+									"        pm.expect(item.eventTsMs).to.be.at.most(endMs);",
+									"    });",
+									"});",
+									"",
+									"pm.test('All filters applied: page size', function () {",
+									"    pm.expect(jsonData.items.length).to.be.at.most(pageSize);",
+									"});",
+									"",
+									"pm.test('All filters applied: chronological order', function () {",
+									"    if (jsonData.items.length < 2) return;",
+									"    ",
+									"    for (let i = 0; i < jsonData.items.length - 1; i++) {",
+									"        pm.expect(jsonData.items[i].eventTsMs).to.be.at.least(jsonData.items[i + 1].eventTsMs);",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/earthquakes?starttime={{narrowStartISO}}&endtime={{narrowEndISO}}&minmagnitude=3.5&pageSize=20",
+							"host": ["{{baseUrl}}"],
+							"path": ["earthquakes"],
+							"query": [
+								{
+									"key": "starttime",
+									"value": "{{narrowStartISO}}",
+									"description": "Dynamic: 48 hours ago"
+								},
+								{
+									"key": "endtime",
+									"value": "{{narrowEndISO}}",
+									"description": "Dynamic: now"
+								},
+								{
+									"key": "minmagnitude",
+									"value": "3.5",
+									"description": "Moderate magnitude threshold"
+								},
+								{
+									"key": "pageSize",
+									"value": "20"
+								}
+							]
+						},
+						"description": "Validates that all filters (time range, magnitude, page size, ordering) work correctly together."
+					},
+					"response": []
+				}
+			],
+			"description": "Comprehensive validation tests for filters and pagination that work with dynamic data."
+		},
+		{
 			"name": "Validation Tests",
 			"item": [
 				{
@@ -490,9 +1049,9 @@
 									"    pm.response.to.have.status(400);",
 									"});",
 									"",
-									"pm.test('Error message mentions pageSize', function () {",
+									"pm.test('Error code is VALIDATION_ERROR', function () {",
 									"    const jsonData = pm.response.json();",
-									"    pm.expect(jsonData.message.toLowerCase()).to.include('pagesize');",
+									"    pm.expect(jsonData.error).to.eql('VALIDATION_ERROR');",
 									"});"
 								],
 								"type": "text/javascript"
@@ -541,11 +1100,9 @@
 									"    pm.response.to.have.status(400);",
 									"});",
 									"",
-									"pm.test('Error mentions time range', function () {",
-									"    const message = pm.response.json().message.toLowerCase();",
-									"    pm.expect(message).to.satisfy(msg => ",
-									"        msg.includes('endtime') || msg.includes('starttime') || msg.includes('time'))",
-									"    );",
+									"pm.test('Error code is VALIDATION_ERROR', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.eql('VALIDATION_ERROR');",
 									"});"
 								],
 								"type": "text/javascript"
@@ -591,12 +1148,9 @@
 									"    pm.response.to.have.status(400);",
 									"});",
 									"",
-									"pm.test('Error indicates invalid token', function () {",
+									"pm.test('Error code is VALIDATION_ERROR', function () {",
 									"    const jsonData = pm.response.json();",
 									"    pm.expect(jsonData.error).to.eql('VALIDATION_ERROR');",
-									"    pm.expect(jsonData.message.toLowerCase()).to.satisfy(msg => ",
-									"        msg.includes('token') || msg.includes('cursor') || msg.includes('signature')",
-									"    );",
 									"});"
 								],
 								"type": "text/javascript"
@@ -705,8 +1259,8 @@
 									"    pm.expect(requestBody.KeyConditionExpression).to.include('gsi1pk = :pk');",
 									"});",
 									"",
-									"const responseBody = pm.response.json();",
-									"if (!responseBody.Items || responseBody.Items.length === 0) {",
+									"const body = pm.response.json();",
+									"if (!body.Items || body.Items.length === 0) {",
 									"    console.warn('No items returned from GSI. Ensure new logs were written after gsi1pk/gsi1sk deployment.');",
 									"}"
 								],

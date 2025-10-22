@@ -52,7 +52,9 @@ export function createQueryService({
 	): Promise<ExecuteQueryResult> {
 		const { starttime, endtime, minmagnitude, pageSize, cursor } = params;
 
-		const buckets = cursor?.buckets || getDayBuckets(starttime, endtime);
+		// Generate buckets in reverse order (newest to oldest) for natural pagination
+		const bucketsAsc = getDayBuckets(starttime, endtime);
+		const buckets = cursor?.buckets || bucketsAsc.reverse();
 		const startIdx = cursor?.idx || 0;
 		const items: EarthquakeEvent[] = [];
 		let bucketsScanned = 0;
@@ -74,35 +76,15 @@ export function createQueryService({
 				exclusiveStartKey,
 			});
 
-			bucketsScanned++;
-			items.push(...result.items);
+		bucketsScanned++;
+		items.push(...result.items);
 
-			if (items.length >= pageSize) {
-				const nextCursor: CursorPayload = {
-					v: 1,
-					st: starttime,
-					et: endtime,
-					mm: minmagnitude,
-					ps: pageSize,
-					buckets,
-					idx: i,
-					lek: result.lastEvaluatedKey,
-				};
-
-				sortItemsDescending(items);
-
-				return {
-					items: items.slice(0, pageSize),
-					nextCursor,
-					bucketsScanned,
-				};
-			}
-
-			if (!result.lastEvaluatedKey && i < buckets.length - 1) {
-				continue;
-			}
-
+		if (items.length >= pageSize) {
+			// Only create nextCursor if there's more data to fetch:
+			// - If we have a lastEvaluatedKey, more items exist in current bucket
+			// - If no lastEvaluatedKey but not at last bucket, advance to next bucket
 			if (result.lastEvaluatedKey) {
+				// More items in current bucket - cursor points to same bucket with lek
 				const nextCursor: CursorPayload = {
 					v: 1,
 					st: starttime,
@@ -122,15 +104,49 @@ export function createQueryService({
 					bucketsScanned,
 				};
 			}
+
+			if (i < buckets.length - 1) {
+				// Current bucket exhausted, but more buckets exist - advance to next
+				const nextCursor: CursorPayload = {
+					v: 1,
+					st: starttime,
+					et: endtime,
+					mm: minmagnitude,
+					ps: pageSize,
+					buckets,
+					idx: i + 1,
+				};
+
+				sortItemsDescending(items);
+
+				return {
+					items: items.slice(0, pageSize),
+					nextCursor,
+					bucketsScanned,
+				};
+			}
+
+			// No more data - last bucket exhausted
+			sortItemsDescending(items);
+
+			return {
+				items: items.slice(0, pageSize),
+				bucketsScanned,
+			};
 		}
 
-		sortItemsDescending(items);
-
-		return {
-			items,
-			bucketsScanned,
-		};
+		if (!result.lastEvaluatedKey && i < buckets.length - 1) {
+			continue;
+		}
 	}
+
+	sortItemsDescending(items);
+
+	return {
+		items,
+		bucketsScanned,
+	};
+}
 
 	return {
 		executeQuery,
