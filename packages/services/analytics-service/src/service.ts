@@ -8,8 +8,7 @@ interface ServiceParams {
 }
 
 interface GetPopularFiltersParams {
-	startDay: string;
-	endDay: string;
+	day: string;
 	windowDays: number;
 	limit: number;
 }
@@ -26,7 +25,12 @@ export function createAnalyticsService({
 	async function getPopularFilters(
 		params: GetPopularFiltersParams,
 	): Promise<AnalyticsResponse> {
-		const { startDay, endDay, windowDays, limit } = params;
+		const { day, windowDays, limit } = params;
+
+		const endDay = day;
+		const startDate = new Date(day);
+		startDate.setUTCDate(startDate.getUTCDate() - (windowDays - 1));
+		const startDay = startDate.toISOString().slice(0, 10);
 
 		const dayBuckets = generateDayBuckets(startDay, windowDays);
 		const allLogs = await collectLogsFromDayBuckets(dayBuckets, repository);

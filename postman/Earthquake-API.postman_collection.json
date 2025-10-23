@@ -193,18 +193,18 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/earthquakes?starttime=1728691200000&endtime=1729382399000&minmagnitude=4.0&pageSize=25",
+							"raw": "{{baseUrl}}/earthquakes?starttime=1760227200000&endtime=1760918399000&minmagnitude=4.0&pageSize=25",
 							"host": ["{{baseUrl}}"],
 							"path": ["earthquakes"],
 							"query": [
 								{
 									"key": "starttime",
-									"value": "1728691200000",
+									"value": "1760227200000",
 									"description": "Start of time window (epoch ms: 2025-10-12 00:00:00 UTC)"
 								},
 								{
 									"key": "endtime",
-									"value": "1729382399000",
+									"value": "1760918399000",
 									"description": "End of time window (epoch ms: 2025-10-19 23:59:59 UTC)"
 								},
 								{

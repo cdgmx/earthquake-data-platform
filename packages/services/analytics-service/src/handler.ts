@@ -1,13 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
-import { AppError, ERROR_CODES, formatErrorBody } from "@earthquake/errors";
+import { AppError, ERROR_CODES } from "@earthquake/errors";
 import { createLogger } from "@earthquake/utils";
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { env } from "./env.js";
 import { createRepository } from "./repository.js";
-import { QueryParamsSchema } from "./schemas.js";
+import type { ErrorResponse } from "./schemas.js";
 import { createAnalyticsService } from "./service.js";
+import { type ValidatedQueryParams, validateQueryParams } from "./validator.js";
 
 const CLIENT = new DynamoDBClient();
 const DOC_CLIENT = DynamoDBDocumentClient.from(CLIENT);
@@ -36,55 +37,26 @@ export async function handler(
 	const startTime = Date.now();
 	const logger = baseLogger.withCorrelationId(requestId);
 
+	let validatedParams: ValidatedQueryParams;
+
 	try {
 		const rawParams = event.queryStringParameters;
-		if (!rawParams) {
-			throw new AppError({
-				code: ERROR_CODES.VALIDATION_ERROR,
-				message: "Missing query parameters",
-				httpStatus: 400,
-			});
-		}
 
-		const validationResult = QueryParamsSchema.safeParse(rawParams);
-		if (!validationResult.success) {
-			const errorMessage = validationResult.error.message;
-			if (!errorMessage) {
-				throw new AppError({
-					code: ERROR_CODES.VALIDATION_ERROR,
-					message: "Invalid query parameters",
-					httpStatus: 400,
-				});
-			}
-
-			throw new AppError({
-				code: ERROR_CODES.VALIDATION_ERROR,
-				message: errorMessage,
-				httpStatus: 400,
-			});
-		}
-
-		const { day, windowDays, limit } = validationResult.data;
-
-		const endDay = day;
-		const startDate = new Date(day);
-		startDate.setUTCDate(startDate.getUTCDate() - (windowDays - 1));
-		const startDay = startDate.toISOString().slice(0, 10);
+		validatedParams = validateQueryParams(rawParams);
 
 		const result = await analyticsService.getPopularFilters({
-			startDay,
-			endDay,
-			windowDays,
-			limit,
+			day: validatedParams.day,
+			windowDays: validatedParams.windowDays,
+			limit: validatedParams.limit,
 		});
 
 		const latencyMs = Date.now() - startTime;
 
 		logger.info("Analytics request completed", {
 			requestId,
-			day,
-			windowDays,
-			limit,
+			day: validatedParams.day,
+			windowDays: validatedParams.windowDays,
+			limit: validatedParams.limit,
 			totalRequests: result.totalRequests,
 			filterCount: result.filters.length,
 			latencyMs,
@@ -100,30 +72,35 @@ export async function handler(
 	} catch (error) {
 		const latencyMs = Date.now() - startTime;
 
-		const formatted = formatErrorBody(error);
+		let statusCode = 500;
+		let errorCode: string = ERROR_CODES.INTERNAL;
+		let errorMessage = "Unknown error";
 
-		let errorDetails: { message: string; name: string } | string;
-		if (error instanceof Error) {
-			errorDetails = {
-				message: error.message,
-				name: error.name,
-			};
+		if (error instanceof AppError) {
+			statusCode = error.httpStatus;
+			errorCode = error.code;
+			errorMessage = error.message;
 		} else {
-			errorDetails = String(error);
+			errorMessage = error instanceof Error ? error.message : String(error);
 		}
 
-		logger.error("Analytics request failed", {
-			requestId,
-			error: errorDetails,
+		logger.error(errorMessage, {
+			status: statusCode,
 			latencyMs,
+			error: errorCode,
 		});
 
+		const errorResponse: ErrorResponse = {
+			error: errorCode,
+			message: errorMessage,
+		};
+
 		return {
-			statusCode: formatted.status,
+			statusCode,
 			headers: {
 				"Content-Type": "application/json",
 			},
-			body: JSON.stringify(formatted.body),
+			body: JSON.stringify(errorResponse),
 		};
 	}
 }

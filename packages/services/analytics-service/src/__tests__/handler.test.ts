@@ -1,22 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { QueryParamsSchema } from "../schemas.js";
+import { queryParamsSchema } from "../validator.js";
 
 describe("handler", () => {
 	describe("query parameter validation", () => {
 		it("rejects missing day parameter", () => {
-			const result = QueryParamsSchema.safeParse({});
+			const result = queryParamsSchema.safeParse({});
 
 			expect(result.success).toBe(false);
 		});
 
 		it("rejects invalid day format", () => {
-			const result = QueryParamsSchema.safeParse({ day: "invalid" });
+			const result = queryParamsSchema.safeParse({ day: "invalid" });
 
 			expect(result.success).toBe(false);
 		});
 
 		it("rejects windowDays exceeding max", () => {
-			const result = QueryParamsSchema.safeParse({
+			const result = queryParamsSchema.safeParse({
 				day: "2024-10-21",
 				windowDays: "8",
 			});
@@ -25,7 +25,7 @@ describe("handler", () => {
 		});
 
 		it("rejects limit exceeding max", () => {
-			const result = QueryParamsSchema.safeParse({
+			const result = queryParamsSchema.safeParse({
 				day: "2024-10-21",
 				limit: "51",
 			});
@@ -34,14 +34,14 @@ describe("handler", () => {
 		});
 
 		it("applies default values for optional parameters", () => {
-			const result = QueryParamsSchema.parse({ day: "2024-10-21" });
+			const result = queryParamsSchema.parse({ day: "2024-10-21" });
 
 			expect(result.windowDays).toBe(1);
 			expect(result.limit).toBe(10);
 		});
 
 		it("accepts valid parameters", () => {
-			const result = QueryParamsSchema.safeParse({
+			const result = queryParamsSchema.safeParse({
 				day: "2024-10-21",
 				windowDays: "3",
 				limit: "20",

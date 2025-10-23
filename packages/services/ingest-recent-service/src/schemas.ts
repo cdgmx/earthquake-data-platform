@@ -62,3 +62,10 @@ export const USGSResponseSchema = z.object({
 
 export type USGSFeature = z.infer<typeof USGSFeatureSchema>;
 export type USGSResponse = z.infer<typeof USGSResponseSchema>;
+
+export interface IngestionResponse {
+	fetched: number;
+	upserted: number;
+	skipped: number;
+	retries: number;
+}

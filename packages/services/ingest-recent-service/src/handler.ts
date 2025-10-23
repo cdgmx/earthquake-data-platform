@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
-import { type FormattedErrorBody, formatErrorBody } from "@earthquake/errors";
+import { AppError, ERROR_CODES } from "@earthquake/errors";
 import { createLogger, type Logger } from "@earthquake/utils";
 import type {
 	APIGatewayProxyEvent,
@@ -11,6 +11,7 @@ import type {
 import { env } from "./env.js";
 import { normalizeEarthquakeEvent } from "./normalizer.js";
 import { createIngestRequestLog, insertEvent } from "./repository.js";
+import type { ErrorResponse, IngestionResponse } from "./schemas.js";
 import { fetchRecentEarthquakes } from "./usgs-client.js";
 
 const CLIENT = new DynamoDBClient();
@@ -68,24 +69,6 @@ async function ingestEarthquakeData(
 	return { fetched: events.length, upserted, skipped, retries };
 }
 
-function createSuccessResponse(
-	summary: IngestionSummary,
-): APIGatewayProxyResult {
-	return {
-		statusCode: 200,
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify(summary),
-	};
-}
-
-function createErrorResponse(error: FormattedErrorBody): APIGatewayProxyResult {
-	return {
-		statusCode: error.status,
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify(error.body),
-	};
-}
-
 export async function handler(
 	_event: APIGatewayProxyEvent,
 	_context: Context,
@@ -94,52 +77,107 @@ export async function handler(
 	const startTime = Date.now();
 	const logger = baseLogger.withCorrelationId(requestId);
 
-	let response: APIGatewayProxyResult;
 	let summary: IngestionSummary = {
 		fetched: 0,
 		upserted: 0,
 		skipped: 0,
 		retries: 0,
 	};
-	let status = 500;
-	let errorMessage: string | undefined;
 
 	try {
 		logger.info("Starting ingestion request");
-		summary = await ingestEarthquakeData(DOC_CLIENT, logger);
-		status = 200;
-		response = createSuccessResponse(summary);
-	} catch (e) {
-		const formattedError = formatErrorBody(e);
-		status = formattedError.status;
-		errorMessage = formattedError.body.message;
-		response = createErrorResponse(formattedError);
 
-		logger.error(`Unexpected error: ${errorMessage}`, {
-			status,
-			error: formattedError.body.error,
-		});
-	} finally {
+		summary = await ingestEarthquakeData(DOC_CLIENT, logger);
+
 		const latencyMs = Date.now() - startTime;
 
-		logger.info("Ingestion request finished", { status, latencyMs, summary });
-
-		await createIngestRequestLog({
-			logInput: {
-				requestId,
-				timestamp: startTime,
-				route: ROUTE_PATH,
-				status,
-				latencyMs,
-				error: errorMessage,
-				...summary,
-			},
-			docClient: DOC_CLIENT,
-			tableName: TABLE_NAME,
-		}).catch((_logError) => {
-			logger.warn("Failed to write request log", { error: "LOG_WRITE_FAILED" });
+		logger.info("Ingestion request completed", {
+			status: 200,
+			latencyMs,
+			...summary,
 		});
-	}
 
-	return response;
+		try {
+			await createIngestRequestLog({
+				logInput: {
+					requestId,
+					timestamp: startTime,
+					route: ROUTE_PATH,
+					status: 200,
+					latencyMs,
+					...summary,
+				},
+				docClient: DOC_CLIENT,
+				tableName: TABLE_NAME,
+			});
+		} catch (_logError) {
+			logger.warn("Failed to write request log", {
+				error: "LOG_WRITE_FAILED",
+			});
+		}
+
+		const response: IngestionResponse = {
+			fetched: summary.fetched,
+			upserted: summary.upserted,
+			skipped: summary.skipped,
+			retries: summary.retries,
+		};
+
+		return {
+			statusCode: 200,
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(response),
+		};
+	} catch (error) {
+		const latencyMs = Date.now() - startTime;
+
+		let statusCode = 500;
+		let errorCode: string = ERROR_CODES.INTERNAL;
+		let errorMessage = "Unknown error";
+
+		if (error instanceof AppError) {
+			statusCode = error.httpStatus;
+			errorCode = error.code;
+			errorMessage = error.message;
+		} else {
+			errorMessage = error instanceof Error ? error.message : String(error);
+		}
+
+		logger.error(errorMessage, {
+			status: statusCode,
+			latencyMs,
+			error: errorCode,
+		});
+
+		try {
+			await createIngestRequestLog({
+				logInput: {
+					requestId,
+					timestamp: startTime,
+					route: ROUTE_PATH,
+					status: statusCode,
+					latencyMs,
+					error: errorMessage,
+					...summary,
+				},
+				docClient: DOC_CLIENT,
+				tableName: TABLE_NAME,
+			});
+		} catch (_logError) {
+			logger.warn("Failed to write request log", {
+				error: "LOG_WRITE_FAILED",
+			});
+		}
+
+		const errorResponse: ErrorResponse = {
+			error: errorCode,
+			message: errorMessage,
+		};
+
+		return {
+			statusCode,
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(errorResponse),
+		};
+	}
 }
