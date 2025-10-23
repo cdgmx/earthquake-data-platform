@@ -4,7 +4,7 @@ import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { AppError, ERROR_CODES } from "@earthquake/errors";
 import { createLogger } from "@earthquake/utils";
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
-import { decodeCursor, encodeCursor } from "./cursor-codec.js";
+import { encodeCursor } from "./cursor-codec.js";
 import { env } from "./env.js";
 import { createQueryService } from "./query-service.js";
 import { createRepository } from "./repository.js";
@@ -39,110 +39,12 @@ export async function handler(
 	const startTime = Date.now();
 	const logger = baseLogger.withCorrelationId(requestId);
 
+	let validatedParams: ValidatedQueryParams;
+
 	try {
 		const rawParams = event.queryStringParameters;
-		if (!rawParams) {
-			const errorResponse: ErrorResponse = {
-				error: "VALIDATION_ERROR",
-				message: "Missing query parameters",
-				details: {},
-			};
-			const latencyMs = Date.now() - startTime;
-			logger.warn("Missing query parameters", {
-				status: 400,
-				latencyMs,
-				error: "VALIDATION_ERROR",
-			});
 
-			return {
-				statusCode: 400,
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(errorResponse),
-			};
-		}
-
-		let params: Record<string, string | number | undefined>;
-		if (rawParams.nextToken) {
-			try {
-				const cursor = decodeCursor(rawParams.nextToken, nextTokenSecret);
-				params = {
-					starttime: cursor.st,
-					endtime: cursor.et,
-					minmagnitude: cursor.mm,
-					pageSize: cursor.ps,
-					nextToken: rawParams.nextToken,
-				};
-			} catch (_error) {
-				const errorResponse: ErrorResponse = {
-					error: "VALIDATION_ERROR",
-					message: "Invalid query parameters",
-					details: {},
-				};
-				const latencyMs = Date.now() - startTime;
-				logger.warn("Invalid nextToken", {
-					status: 400,
-					latencyMs,
-					error: "VALIDATION_ERROR",
-				});
-
-				return {
-					statusCode: 400,
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify(errorResponse),
-				};
-			}
-		} else {
-			let minmagnitude: number | undefined;
-			if (rawParams.minmagnitude) {
-				minmagnitude = Number.parseFloat(rawParams.minmagnitude);
-			}
-
-			let pageSize: number | undefined;
-			if (rawParams.pageSize) {
-				pageSize = Number.parseInt(rawParams.pageSize, 10);
-			}
-
-			params = {
-				starttime: rawParams.starttime,
-				endtime: rawParams.endtime,
-				minmagnitude,
-				pageSize,
-			};
-
-			if (
-				typeof params.starttime === "string" &&
-				/^\d+$/.test(params.starttime)
-			) {
-				params.starttime = Number.parseInt(params.starttime, 10);
-			}
-			if (typeof params.endtime === "string" && /^\d+$/.test(params.endtime)) {
-				params.endtime = Number.parseInt(params.endtime, 10);
-			}
-		}
-
-		let validatedParams: ValidatedQueryParams;
-		try {
-			validatedParams = validateQueryParams(params, nextTokenSecret);
-		} catch (error) {
-			const errorResponse: ErrorResponse = {
-				error: "VALIDATION_ERROR",
-				message: "Invalid query parameters",
-				details: error,
-			};
-			const latencyMs = Date.now() - startTime;
-
-			logger.warn("Validation failed", {
-				status: 400,
-				latencyMs,
-				error: "VALIDATION_ERROR",
-			});
-
-			return {
-				statusCode: 400,
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(errorResponse),
-			};
-		}
+		validatedParams = validateQueryParams(rawParams, nextTokenSecret);
 
 		const result = await queryService.executeQuery({
 			starttime: validatedParams.starttime,
@@ -199,21 +101,15 @@ export async function handler(
 			statusCode = error.httpStatus;
 			errorCode = error.code;
 			errorMessage = error.message;
-
-			logger.error(error.message, {
-				status: statusCode,
-				latencyMs,
-				error: error.code,
-			});
 		} else {
 			errorMessage = error instanceof Error ? error.message : String(error);
-
-			logger.error(`Unexpected error: ${errorMessage}`, {
-				status: statusCode,
-				latencyMs,
-				error: errorCode,
-			});
 		}
+
+		logger.error(errorMessage, {
+			status: statusCode,
+			latencyMs,
+			error: errorCode,
+		});
 
 		const errorResponse: ErrorResponse = {
 			error: errorCode,

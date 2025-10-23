@@ -59,97 +59,98 @@ export function createQueryService({
 		const items: EarthquakeEvent[] = [];
 		let bucketsScanned = 0;
 
-	for (let i = startIdx; i < buckets.length; i++) {
-		const dayBucket = buckets[i];
+		for (let i = startIdx; i < buckets.length; i++) {
+			const dayBucket = buckets[i];
 
-		let exclusiveStartKey: Record<string, unknown> | undefined;
-		if (i === startIdx && cursor?.lek) {
-			exclusiveStartKey = cursor.lek;
-		}
+			let exclusiveStartKey: Record<string, unknown> | undefined;
+			if (i === startIdx && cursor?.lek) {
+				exclusiveStartKey = cursor.lek;
+			}
 
-		// Inner loop: keep querying same bucket until exhausted or page full
-		while (true) {
-			const result = await repository.queryDayBucket({
-				dayBucket,
-				startMs: starttime,
-				endMs: endtime,
-				minMagnitude: minmagnitude,
-				limit: pageSize - items.length,
-				exclusiveStartKey,
-			});
+			// Inner loop: keep querying same bucket until exhausted or page full
+			while (true) {
+				const result = await repository.queryDayBucket({
+					dayBucket,
+					startMs: starttime,
+					endMs: endtime,
+					minMagnitude: minmagnitude,
+					limit: pageSize - items.length,
+					exclusiveStartKey,
+				});
 
-			bucketsScanned++;
-			items.push(...result.items);
+				bucketsScanned++;
+				items.push(...result.items);
 
-			if (items.length >= pageSize) {
-				// Page is full
-				if (result.lastEvaluatedKey) {
-					// More items in current bucket - cursor points to same bucket with lek
-					const nextCursor: CursorPayload = {
-						v: 1,
-						st: starttime,
-						et: endtime,
-						mm: minmagnitude,
-						ps: pageSize,
-						buckets,
-						idx: i,
-						lek: result.lastEvaluatedKey,
-					};
+				if (items.length >= pageSize) {
+					// Page is full
+					if (result.lastEvaluatedKey) {
+						// More items in current bucket - cursor points to same bucket with lek
+						const nextCursor: CursorPayload = {
+							v: 1,
+							st: starttime,
+							et: endtime,
+							mm: minmagnitude,
+							ps: pageSize,
+							buckets,
+							idx: i,
+							lek: result.lastEvaluatedKey,
+						};
 
+						sortItemsDescending(items);
+
+						return {
+							items: items.slice(0, pageSize),
+							nextCursor,
+							bucketsScanned,
+						};
+					}
+
+					if (i < buckets.length - 1) {
+						// Current bucket exhausted, but more buckets exist - advance to next
+						const nextCursor: CursorPayload = {
+							v: 1,
+							st: starttime,
+							et: endtime,
+							mm: minmagnitude,
+							ps: pageSize,
+							buckets,
+							idx: i + 1,
+						};
+
+						sortItemsDescending(items);
+
+						return {
+							items: items.slice(0, pageSize),
+							nextCursor,
+							bucketsScanned,
+						};
+					}
+
+					// No more data - last bucket exhausted
 					sortItemsDescending(items);
 
 					return {
 						items: items.slice(0, pageSize),
-						nextCursor,
 						bucketsScanned,
 					};
 				}
 
-				if (i < buckets.length - 1) {
-					// Current bucket exhausted, but more buckets exist - advance to next
-					const nextCursor: CursorPayload = {
-						v: 1,
-						st: starttime,
-						et: endtime,
-						mm: minmagnitude,
-						ps: pageSize,
-						buckets,
-						idx: i + 1,
-					};
-
-					sortItemsDescending(items);
-
-					return {
-						items: items.slice(0, pageSize),
-						nextCursor,
-						bucketsScanned,
-					};
+				if (!result.lastEvaluatedKey) {
+					// Current bucket exhausted, move to next bucket
+					break;
 				}
 
-				// No more data - last bucket exhausted
-				sortItemsDescending(items);
-
-				return {
-					items: items.slice(0, pageSize),
-					bucketsScanned,
-				};
+				// Bucket has more items and page not full - continue querying same bucket
+				exclusiveStartKey = result.lastEvaluatedKey;
 			}
-
-			if (!result.lastEvaluatedKey) {
-				// Current bucket exhausted, move to next bucket
-				break;
-			}
-
-			// Bucket has more items and page not full - continue querying same bucket
-			exclusiveStartKey = result.lastEvaluatedKey;
 		}
-	}	sortItemsDescending(items);
+		sortItemsDescending(items);
 
-	return {
-		items,
-		bucketsScanned,
-	};
-}
+		return {
+			items,
+			bucketsScanned,
+		};
+	}
 
 	return {
 		executeQuery,
