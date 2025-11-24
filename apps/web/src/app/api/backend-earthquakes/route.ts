@@ -11,10 +11,8 @@ import type {
 import { buildApiError } from "@earthquake/earthquakes/utils/errors";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-
-const BACKEND_URL =
-	process.env.BACKEND_API_URL ||
-	"http://localhost:4566/restapis/vkvolnfkbk/local/_user_request_";
+import { resolveBackendConfig } from "@/lib/backend-config";
+import { queryOfflineEarthquakes } from "@/lib/offline-store";
 
 type ResponseBody = ApiEarthquakesOk | ApiError;
 
@@ -42,17 +40,44 @@ export async function GET(
 		});
 	}
 
+	let parsedPageSize: number | undefined;
+	if (pageSize) {
+		parsedPageSize = Number.parseInt(pageSize, 10);
+	}
+
+	let normalizedNextToken: string | undefined;
+	if (nextToken && nextToken.length > 0) {
+		normalizedNextToken = nextToken;
+	}
+
 	const params: BackendQueryParams = {
 		starttime,
 		endtime,
 		minmagnitude: Number.parseFloat(minmagnitude),
-		pageSize: pageSize ? Number.parseInt(pageSize, 10) : undefined,
-		nextToken: nextToken || undefined,
+		pageSize: parsedPageSize,
+		nextToken: normalizedNextToken,
 	};
+
+	const resolvedBackend = resolveBackendConfig(
+		request.cookies,
+		process.env.BACKEND_API_URL,
+	);
+
+	if (!resolvedBackend.backendUrl) {
+		const offlinePayload = queryOfflineEarthquakes(params);
+		return NextResponse.json(offlinePayload, {
+			status: 200,
+			headers: {
+				"Content-Type": "application/json",
+				"Cache-Control": "no-store",
+				"X-Backend-Mode": "offline",
+			},
+		});
+	}
 
 	try {
 		const backendResponse = await fetchEarthquakesFromBackend(
-			BACKEND_URL,
+			resolvedBackend.backendUrl,
 			params,
 		);
 
@@ -70,6 +95,7 @@ export async function GET(
 			headers: {
 				"Content-Type": "application/json",
 				"Cache-Control": "no-store",
+				"X-Backend-Mode": resolvedBackend.mode,
 			},
 		});
 	} catch (error) {

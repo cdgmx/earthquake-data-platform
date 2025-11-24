@@ -210,11 +210,15 @@ export function EarthquakeMap({
 			mapInstance.off("click", EARTHQUAKE_LAYER_ID, handleClick);
 			mapInstance.off("mouseenter", EARTHQUAKE_LAYER_ID, handleMouseEnter);
 			mapInstance.off("mouseleave", EARTHQUAKE_LAYER_ID, handleMouseLeave);
-			if (mapInstance.getLayer(EARTHQUAKE_LAYER_ID)) {
-				mapInstance.removeLayer(EARTHQUAKE_LAYER_ID);
-			}
-			if (mapInstance.getSource(EARTHQUAKE_SOURCE_ID)) {
-				mapInstance.removeSource(EARTHQUAKE_SOURCE_ID);
+			try {
+				if (mapInstance.getLayer(EARTHQUAKE_LAYER_ID)) {
+					mapInstance.removeLayer(EARTHQUAKE_LAYER_ID);
+				}
+				if (mapInstance.getSource(EARTHQUAKE_SOURCE_ID)) {
+					mapInstance.removeSource(EARTHQUAKE_SOURCE_ID);
+				}
+			} catch {
+				// Map may already be removed by the initialization cleanup
 			}
 			popupRef.current?.remove();
 			popupRef.current = null;

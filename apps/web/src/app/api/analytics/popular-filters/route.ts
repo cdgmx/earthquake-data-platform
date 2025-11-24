@@ -9,10 +9,8 @@ import type {
 import { buildApiError } from "@earthquake/earthquakes/utils/errors";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-
-const BACKEND_URL =
-	process.env.BACKEND_API_URL ||
-	"http://localhost:4566/restapis/vkvolnfkbk/local/_user_request_";
+import { resolveBackendConfig } from "@/lib/backend-config";
+import { buildOfflineAnalytics } from "@/lib/offline-store";
 
 type ResponseBody = AnalyticsResponse | ApiError;
 
@@ -21,13 +19,43 @@ export async function GET(
 ): Promise<NextResponse<ResponseBody>> {
 	const searchParams = request.nextUrl.searchParams;
 
-	const day = searchParams.get("day") || new Date().toISOString().slice(0, 10);
-	const windowDays = Number.parseInt(searchParams.get("windowDays") || "7", 10);
-	const limit = Number.parseInt(searchParams.get("limit") || "10", 10);
+	let day = searchParams.get("day");
+	if (!day) {
+		day = new Date().toISOString().slice(0, 10);
+	}
+
+	let windowDays = 7;
+	const rawWindow = searchParams.get("windowDays");
+	if (rawWindow) {
+		windowDays = Number.parseInt(rawWindow, 10);
+	}
+
+	let limit = 10;
+	const rawLimit = searchParams.get("limit");
+	if (rawLimit) {
+		limit = Number.parseInt(rawLimit, 10);
+	}
+
+	const resolvedBackend = resolveBackendConfig(
+		request.cookies,
+		process.env.BACKEND_API_URL,
+	);
+
+	if (!resolvedBackend.backendUrl) {
+		const offlineAnalytics = buildOfflineAnalytics(day, windowDays, limit);
+		return NextResponse.json(offlineAnalytics, {
+			status: 200,
+			headers: {
+				"Content-Type": "application/json",
+				"Cache-Control": "public, max-age=300",
+				"X-Backend-Mode": "offline",
+			},
+		});
+	}
 
 	try {
 		const analyticsData = await fetchPopularFilters(
-			BACKEND_URL,
+			resolvedBackend.backendUrl,
 			day,
 			windowDays,
 			limit,
@@ -38,6 +66,7 @@ export async function GET(
 			headers: {
 				"Content-Type": "application/json",
 				"Cache-Control": "public, max-age=300",
+				"X-Backend-Mode": resolvedBackend.mode,
 			},
 		});
 	} catch (error) {

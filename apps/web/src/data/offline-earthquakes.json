@@ -1,0 +1,150 @@
+{
+	"status": "ok",
+	"updatedAt": "2025-12-14T23:55:00.000Z",
+	"items": [
+		{
+			"id": "offline-20251214-01",
+			"magnitude": 5.6,
+			"place": "Near Coast of Central Chile",
+			"occurredAt": "2025-12-14T03:21:00.000Z",
+			"detailUrl": "https://earthquake.example/offline-20251214-01",
+			"coordinates": {
+				"latitude": -31.2,
+				"longitude": -71.6,
+				"depthKm": 22.4
+			}
+		},
+		{
+			"id": "offline-20251213-02",
+			"magnitude": 4.8,
+			"place": "Mindoro, Philippines",
+			"occurredAt": "2025-12-13T18:05:30.000Z",
+			"detailUrl": "https://earthquake.example/offline-20251213-02",
+			"coordinates": {
+				"latitude": 13.1,
+				"longitude": 120.7,
+				"depthKm": 12.8
+			}
+		},
+		{
+			"id": "offline-20251213-03",
+			"magnitude": 3.9,
+			"place": "Nevada-California Border Region",
+			"occurredAt": "2025-12-13T09:42:12.000Z",
+			"detailUrl": "https://earthquake.example/offline-20251213-03",
+			"coordinates": {
+				"latitude": 38.3,
+				"longitude": -118.9,
+				"depthKm": 7.2
+			}
+		},
+		{
+			"id": "offline-20251212-04",
+			"magnitude": 6.1,
+			"place": "Kuril Islands",
+			"occurredAt": "2025-12-12T22:15:49.000Z",
+			"detailUrl": "https://earthquake.example/offline-20251212-04",
+			"coordinates": {
+				"latitude": 49.2,
+				"longitude": 154.1,
+				"depthKm": 35.0
+			}
+		},
+		{
+			"id": "offline-20251212-05",
+			"magnitude": 2.7,
+			"place": "Southern Alaska",
+			"occurredAt": "2025-12-12T14:33:05.000Z",
+			"detailUrl": "https://earthquake.example/offline-20251212-05",
+			"coordinates": {
+				"latitude": 61.4,
+				"longitude": -146.1,
+				"depthKm": 18.9
+			}
+		},
+		{
+			"id": "offline-20251211-06",
+			"magnitude": 4.1,
+			"place": "Offshore Oaxaca, Mexico",
+			"occurredAt": "2025-12-11T05:58:17.000Z",
+			"detailUrl": "https://earthquake.example/offline-20251211-06",
+			"coordinates": {
+				"latitude": 15.6,
+				"longitude": -95.5,
+				"depthKm": 20.3
+			}
+		},
+		{
+			"id": "offline-20251210-07",
+			"magnitude": 3.2,
+			"place": "Western Montana",
+			"occurredAt": "2025-12-10T16:44:02.000Z",
+			"detailUrl": "https://earthquake.example/offline-20251210-07",
+			"coordinates": {
+				"latitude": 47.1,
+				"longitude": -113.9,
+				"depthKm": 9.4
+			}
+		},
+		{
+			"id": "offline-20251209-08",
+			"magnitude": 5.0,
+			"place": "Vanuatu Islands",
+			"occurredAt": "2025-12-09T11:29:54.000Z",
+			"detailUrl": "https://earthquake.example/offline-20251209-08",
+			"coordinates": {
+				"latitude": -16.0,
+				"longitude": 167.8,
+				"depthKm": 28.7
+			}
+		},
+		{
+			"id": "offline-20251208-09",
+			"magnitude": 4.5,
+			"place": "Dodecanese Islands, Greece",
+			"occurredAt": "2025-12-08T23:13:40.000Z",
+			"detailUrl": "https://earthquake.example/offline-20251208-09",
+			"coordinates": {
+				"latitude": 36.4,
+				"longitude": 27.1,
+				"depthKm": 10.2
+			}
+		},
+		{
+			"id": "offline-20251208-10",
+			"magnitude": 2.4,
+			"place": "Central California",
+			"occurredAt": "2025-12-08T08:47:11.000Z",
+			"detailUrl": "https://earthquake.example/offline-20251208-10",
+			"coordinates": {
+				"latitude": 36.8,
+				"longitude": -121.7,
+				"depthKm": 5.1
+			}
+		},
+		{
+			"id": "offline-20251207-11",
+			"magnitude": 4.3,
+			"place": "Kermadec Islands Region",
+			"occurredAt": "2025-12-07T19:56:28.000Z",
+			"detailUrl": "https://earthquake.example/offline-20251207-11",
+			"coordinates": {
+				"latitude": -29.1,
+				"longitude": -177.0,
+				"depthKm": 38.5
+			}
+		},
+		{
+			"id": "offline-20251207-12",
+			"magnitude": 3.5,
+			"place": "Northern Italy",
+			"occurredAt": "2025-12-07T02:12:45.000Z",
+			"detailUrl": "https://earthquake.example/offline-20251207-12",
+			"coordinates": {
+				"latitude": 45.4,
+				"longitude": 10.7,
+				"depthKm": 6.8
+			}
+		}
+	]
+}

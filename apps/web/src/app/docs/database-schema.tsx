@@ -1,4 +1,52 @@
+"use client";
+
 import type { ReactNode } from "react";
+import { MermaidDiagram } from "./mermaid-diagram";
+
+const schemaFlowchart = `flowchart TB
+    subgraph table["earthquake-events Table"]
+        direction TB
+        config["Billing: On-demand\\nPrimary: pk (S), sk (S)\\nTTL: ttl"]
+    end
+
+    subgraph entities["Entity Types"]
+        direction LR
+        event["EVENT Entity\\npk = EVENT#&lt;usgsEventId&gt;\\nsk = EVENT\\nmag, place, lat, lon, depth"]
+        log["LOG Entity\\npk = LOG#&lt;YYYYMMDD&gt;\\nsk = &lt;epochMs&gt;#&lt;uuid&gt;\\nstatus, latencyMs, ttl"]
+    end
+
+    subgraph gsi["TimeOrderedIndex GSI"]
+        direction TB
+        gsiConfig["Partition: gsi1pk = DAY#YYYYMMDD\\nSort: gsi1sk = eventTsMs\\nProjection: ALL"]
+    end
+
+    subgraph patterns["Access Patterns"]
+        direction TB
+        insertEvent["Insert Event\\nPutItem + attribute_not_exists"]
+        queryDay["Query by Day\\nGSI Query + mag filter"]
+        insertLog["Insert Log\\nPutItem with TTL"]
+        queryLogs["Query Logs\\nBase table Query"]
+    end
+
+    table --> entities
+    event --> gsi
+    insertEvent --> event
+    queryDay --> gsi
+    insertLog --> log
+    queryLogs --> log
+
+    style table fill:#f8fafc,stroke:#e2e8f0
+    style entities fill:#f0fdf4,stroke:#bbf7d0
+    style gsi fill:#eff6ff,stroke:#bfdbfe
+    style patterns fill:#fef3c7,stroke:#fde68a
+    style event fill:#22c55e,stroke:#16a34a,color:#fff
+    style log fill:#3b82f6,stroke:#2563eb,color:#fff
+    style gsiConfig fill:#60a5fa,stroke:#3b82f6,color:#fff
+    style insertEvent fill:#fbbf24,stroke:#f59e0b
+    style queryDay fill:#fbbf24,stroke:#f59e0b
+    style insertLog fill:#fbbf24,stroke:#f59e0b
+    style queryLogs fill:#fbbf24,stroke:#f59e0b
+`;
 
 interface Field {
 	name: string;
@@ -377,6 +425,10 @@ export function DatabaseSchema() {
 					our ingestion and query services.
 				</p>
 			</div>
+
+			<SchemaCard title="Visual Schema" subtitle="Single-table design with GSI and access patterns">
+				<MermaidDiagram chart={schemaFlowchart} />
+			</SchemaCard>
 
 			<div className="grid gap-6 lg:grid-cols-2">
 				<SchemaCard title="Table Configuration" subtitle="Physical layout">

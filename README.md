@@ -93,6 +93,12 @@ pnpm infra:diff       # Preview changes
 pnpm infra:synth      # Generate CloudFormation
 ```
 
+## 📴 Offline Demo Mode
+
+- Use the in-app admin tool at `http://localhost:3000/admin/backend` to switch between the bundled offline dataset and a live backend endpoint.
+- Refresh or replace the offline dataset with `pnpm offline:sync` (requires `BACKEND_API_URL` or a CLI argument pointing to your API Gateway base URL).
+- The offline payload that ships with the repo lives at [apps/web/src/data/offline-earthquakes.json](apps/web/src/data/offline-earthquakes.json) and powers both the Explorer and analytics views whenever no backend is configured.
+
 ## 📖 Documentation
 
 - **[QUICKSTART.md](./QUICKSTART.md)** - One-page reference for new developers

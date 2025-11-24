@@ -28,7 +28,8 @@
 		"infra:deploy": "dotenv -e .env -- sh -c 'cd apps/infra && pnpm exec cdklocal deploy --all --require-approval never'",
 		"infra:diff": "dotenv -e .env -- sh -c 'cd apps/infra && pnpm exec cdklocal diff'",
 		"infra:destroy": "dotenv -e .env -- sh -c 'cd apps/infra && pnpm exec cdklocal destroy --all --force'",
-		"infra:synth": "dotenv -e .env -- sh -c 'cd apps/infra && pnpm exec cdklocal synth'"
+		"infra:synth": "dotenv -e .env -- sh -c 'cd apps/infra && pnpm exec cdklocal synth'",
+		"offline:sync": "node scripts/export-offline-earthquakes.mjs"
 	},
 	"dependencies": {
 		"dotenv-cli": "^10.0.0"

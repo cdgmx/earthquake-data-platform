@@ -8,6 +8,7 @@ import {
 	Globe,
 	Home,
 	MapIcon,
+	ServerCog,
 	Settings,
 	TrendingUp,
 } from "lucide-react";
@@ -27,6 +28,7 @@ const navItems = [
 
 const bottomNavItems = [
 	{ href: "/settings", icon: Settings, label: "Settings" },
+	{ href: "/admin/backend", icon: ServerCog, label: "Backend Admin" },
 ];
 
 export function Sidebar() {
