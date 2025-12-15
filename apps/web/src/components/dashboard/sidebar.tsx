@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Activity, Home, ServerCog, Settings } from "lucide-react";
+import { Activity, BookOpen, Home, ServerCog, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
 	{ href: "/dashboard", icon: Home, label: "Dashboard" },
 	{ href: "/earthquakes", icon: Activity, label: "Explorer" },
+	{ href: "/docs", icon: BookOpen, label: "Documentation" },
 ];
 
 const bottomNavItems = [
