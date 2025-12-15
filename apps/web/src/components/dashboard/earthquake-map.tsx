@@ -85,24 +85,25 @@ export function EarthquakeMap({
 			style: {
 				version: 8,
 				sources: {
-					osm: {
+					carto: {
 						type: "raster",
 						tiles: [
-							"https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
-							"https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
-							"https://c.tile.openstreetmap.org/{z}/{x}/{y}.png",
+							"https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+							"https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+							"https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
 						],
 						tileSize: 256,
-						attribution: "© OpenStreetMap contributors",
+						attribution:
+							'&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
 					},
 				},
 				layers: [
 					{
-						id: "osm-tiles",
+						id: "carto-tiles",
 						type: "raster",
-						source: "osm",
+						source: "carto",
 						minzoom: 0,
-						maxzoom: 19,
+						maxzoom: 20,
 					},
 				],
 			},
@@ -226,14 +227,14 @@ export function EarthquakeMap({
 	}, [isMapReady]);
 
 	useEffect(() => {
-		if (!mapRef.current) return;
+		if (!isMapReady || !mapRef.current) return;
 		const source = mapRef.current.getSource(
 			EARTHQUAKE_SOURCE_ID,
 		) as maplibregl.GeoJSONSource | undefined;
 		if (source) {
 			source.setData(featureCollection);
 		}
-	}, [featureCollection]);
+	}, [featureCollection, isMapReady]);
 
 	return (
 		<motion.div
@@ -272,9 +273,13 @@ export function EarthquakeMap({
 				<CardContent className="p-0">
 					<div
 						className="relative overflow-hidden rounded-b-lg"
-						style={{ height }}
+						style={{ height, width: "100%" }}
 					>
-						<div ref={mapContainerRef} className="absolute inset-0" />
+						<div
+							ref={mapContainerRef}
+							className="absolute inset-0"
+							style={{ width: "100%", height: "100%" }}
+						/>
 					</div>
 				</CardContent>
 			</Card>

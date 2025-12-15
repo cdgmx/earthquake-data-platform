@@ -1,17 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import {
-	Activity,
-	BarChart3,
-	Calendar,
-	Globe,
-	Home,
-	MapIcon,
-	ServerCog,
-	Settings,
-	TrendingUp,
-} from "lucide-react";
+import { Activity, Home, ServerCog, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -19,11 +9,6 @@ import { cn } from "@/lib/utils";
 const navItems = [
 	{ href: "/dashboard", icon: Home, label: "Dashboard" },
 	{ href: "/earthquakes", icon: Activity, label: "Explorer" },
-	{ href: "/earthquakes/map", icon: MapIcon, label: "Live Map" },
-	{ href: "/earthquakes/analytics", icon: BarChart3, label: "Analytics" },
-	{ href: "/earthquakes/trends", icon: TrendingUp, label: "Trends" },
-	{ href: "/earthquakes/calendar", icon: Calendar, label: "Calendar" },
-	{ href: "/earthquakes/regions", icon: Globe, label: "Regions" },
 ];
 
 const bottomNavItems = [
