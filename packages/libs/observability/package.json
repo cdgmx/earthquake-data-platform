@@ -11,8 +11,8 @@
 		"format": "biome format --write ."
 	},
 	"dependencies": {
-		"@earthquake/schemas": "workspace:*",
-		"@earthquake/dynamo-client": "workspace:*"
+		"@earthquake/schemas": "*",
+		"@earthquake/dynamo-client": "*"
 	},
 	"devDependencies": {
 		"@types/node": "^20.0.0"

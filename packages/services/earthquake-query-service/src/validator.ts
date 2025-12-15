@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { AppError } from "../../../libs/errors/src/app-error.js";
-import { ERROR_CODES } from "../../../libs/errors/src/error-codes.js";
+import { AppError, ERROR_CODES } from "@earthquake/errors";
 import { decodeCursor, verifyCursorFilters } from "./cursor-codec.js";
 import type { CursorPayload } from "./schemas.js";
 

@@ -14,11 +14,11 @@
 		"tsc:check": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@earthquake/dynamo-client": "workspace:*",
-		"@earthquake/env": "workspace:*",
-		"@earthquake/errors": "workspace:*",
-		"@earthquake/schemas": "workspace:*",
-		"@earthquake/utils": "workspace:*",
+		"@earthquake/dynamo-client": "*",
+		"@earthquake/env": "*",
+		"@earthquake/errors": "*",
+		"@earthquake/schemas": "*",
+		"@earthquake/utils": "*",
 		"zod": "^4.1.12"
 	},
 	"devDependencies": {

@@ -17,7 +17,7 @@
 		"clean": "rm -rf .turbo node_modules"
 	},
 	"dependencies": {
-		"@earthquake/schemas": "workspace:*",
+		"@earthquake/schemas": "*",
 		"@tanstack/react-table": "^8.21.3",
 		"clsx": "^2.1.1",
 		"date-fns": "^4.1.0",

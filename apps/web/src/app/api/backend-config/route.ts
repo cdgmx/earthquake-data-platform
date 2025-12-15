@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
 		const response = NextResponse.json({
 			message: "Backend preference cleared",
 		});
-		response.cookies.delete(BACKEND_ENDPOINT_COOKIE, cookieOptions);
+		response.cookies.delete(BACKEND_ENDPOINT_COOKIE);
 		return response;
 	}
 
@@ -100,5 +100,6 @@ export async function POST(request: NextRequest) {
 		return response;
 	}
 
-	return badRequest(`Unsupported mode: ${payload.mode}`);
+	const exhaustiveCheck: never = payload;
+	return badRequest("Unsupported mode");
 }
