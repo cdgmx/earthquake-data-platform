@@ -1,0 +1,705 @@
+openapi: 3.1.0
+info:
+  title: Earthquake Data Platform API
+  description: |
+    The Earthquake Data Platform API provides access to real-time earthquake data sourced from the
+    USGS (United States Geological Survey). This API enables:
+
+    - **Data Ingestion**: Trigger ingestion of recent earthquake events from the USGS feed
+    - **Earthquake Queries**: Search and filter earthquake events by time range and magnitude
+    - **Analytics**: Retrieve popular query filter statistics for observability
+
+    ## Architecture Overview
+
+    ```
+    ┌─────────────┐     ┌─────────────┐     ┌─────────────────┐
+    │   Client    │────▶│ API Gateway │────▶│ Lambda Functions│
+    └─────────────┘     └─────────────┘     └─────────────────┘
+                                                    │
+                                                    ▼
+                                            ┌─────────────┐
+                                            │  DynamoDB   │
+                                            │(Single Table)│
+                                            └─────────────┘
+    ```
+
+    ## Authentication
+
+    Currently, this API does not require authentication for local development.
+    Production deployments should implement appropriate authentication mechanisms.
+
+    ## Rate Limiting
+
+    The API is subject to AWS API Gateway default throttling limits:
+    - 10,000 requests per second (burst)
+    - 5,000 requests per second (steady-state)
+
+    ## Error Handling
+
+    All endpoints return consistent error responses with the following structure:
+    - `error`: Error code identifier
+    - `message`: Human-readable error description
+    - `details`: Optional additional context (object)
+
+  version: 1.0.0
+  contact:
+    name: Earthquake Platform Team
+    url: https://github.com/christian/Earthquake
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://vkvolnfkbk.execute-api.localhost.localstack.cloud:4566/local
+    description: LocalStack Development Environment
+  - url: "{protocol}://{host}/api"
+    description: Next.js BFF (Backend for Frontend)
+    variables:
+      protocol:
+        default: http
+        enum:
+          - http
+          - https
+      host:
+        default: localhost:3000
+
+tags:
+  - name: Ingestion
+    description: |
+      Endpoints for ingesting earthquake data from external sources (USGS).
+
+      The ingestion service fetches recent earthquake events from the USGS GeoJSON feed
+      and stores them in DynamoDB with proper indexing for efficient queries.
+  - name: Earthquakes
+    description: |
+      Endpoints for querying earthquake events.
+
+      Supports filtering by time range and minimum magnitude, with cursor-based
+      pagination for efficient large result set traversal.
+  - name: Analytics
+    description: |
+      Endpoints for analytics and observability data.
+
+      Provides insights into API usage patterns, including popular query filters
+      aggregated over configurable time windows.
+
+paths:
+  /ingest/recent:
+    post:
+      operationId: ingestRecentEarthquakes
+      summary: Ingest recent earthquakes from USGS
+      description: |
+        Triggers an ingestion job that fetches the latest earthquake events from the
+        USGS GeoJSON feed and stores them in the database.
+
+        ## Process Flow
+
+        1. Fetch earthquake data from USGS API (up to 100 most recent events)
+        2. Normalize event data to internal schema
+        3. Upsert events into DynamoDB (skip duplicates)
+        4. Log ingestion metrics for observability
+
+        ## Idempotency
+
+        This endpoint is idempotent. Duplicate events (same `eventId`) are detected
+        and skipped, ensuring no duplicate records are created.
+
+        ## USGS Data Source
+
+        Data is fetched from:
+        ```
+        https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&orderby=time&limit=100
+        ```
+      tags:
+        - Ingestion
+      responses:
+        "200":
+          description: Ingestion completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngestionResponse"
+              examples:
+                successful:
+                  summary: Successful ingestion with new events
+                  value:
+                    fetched: 100
+                    upserted: 15
+                    skipped: 85
+                    retries: 0
+                allSkipped:
+                  summary: All events already existed
+                  value:
+                    fetched: 100
+                    upserted: 0
+                    skipped: 100
+                    retries: 0
+                withRetries:
+                  summary: Ingestion succeeded after retries
+                  value:
+                    fetched: 100
+                    upserted: 42
+                    skipped: 58
+                    retries: 2
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                upstreamError:
+                  summary: USGS API unavailable
+                  value:
+                    error: "UPSTREAM_UNAVAILABLE"
+                    message: "Failed to fetch data from USGS API"
+                databaseError:
+                  summary: Database connection failed
+                  value:
+                    error: "DATABASE_UNAVAILABLE"
+                    message: "Failed to connect to DynamoDB"
+
+  /earthquakes:
+    get:
+      operationId: queryEarthquakes
+      summary: Query earthquake events
+      description: |
+        Retrieves earthquake events matching the specified criteria.
+
+        ## Query Behavior
+
+        - Events are filtered by time range (`starttime` to `endtime`)
+        - Events are filtered by minimum magnitude (`minmagnitude`)
+        - Results are ordered by event time (newest first)
+        - Pagination is cursor-based using `nextToken`
+
+        ## Time Parameters
+
+        Time parameters accept Unix timestamps in milliseconds (epoch time).
+
+        Example: `1702600000000` represents December 15, 2023
+
+        ## Pagination
+
+        When more results exist beyond the `pageSize` limit, a `nextToken` is returned.
+        Pass this token in subsequent requests to retrieve the next page.
+
+        The cursor is cryptographically signed to prevent tampering.
+
+        ## Performance Notes
+
+        - Queries scan day-based partitions in DynamoDB
+        - Large time ranges may require multiple internal partition scans
+        - Use reasonable `pageSize` values (10-100) for optimal performance
+      tags:
+        - Earthquakes
+      parameters:
+        - name: starttime
+          in: query
+          required: true
+          description: |
+            Start of time range (inclusive).
+            Unix timestamp in milliseconds.
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+          example: 1702000000000
+        - name: endtime
+          in: query
+          required: true
+          description: |
+            End of time range (inclusive).
+            Unix timestamp in milliseconds.
+            Must be greater than `starttime`.
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+          example: 1702600000000
+        - name: minmagnitude
+          in: query
+          required: true
+          description: |
+            Minimum magnitude filter (inclusive).
+            Values typically range from -1.0 to 10.0.
+          schema:
+            type: number
+            format: double
+            minimum: -2
+            maximum: 10
+          example: 4.5
+        - name: pageSize
+          in: query
+          required: false
+          description: |
+            Maximum number of results to return per page.
+            Defaults to 50 if not specified.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+          example: 25
+        - name: nextToken
+          in: query
+          required: false
+          description: |
+            Pagination cursor from a previous response.
+            Pass this value to retrieve the next page of results.
+          schema:
+            type: string
+          example: "eyJ2IjoxLCJzdCI6MTcwMjAwMDAwMDAwMCwiZXQiOjE3MDI2MDAwMDAwMDB9..."
+      responses:
+        "200":
+          description: Query executed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EarthquakeQueryResponse"
+              examples:
+                withResults:
+                  summary: Query with results
+                  value:
+                    items:
+                      - eventId: "us7000lxyz"
+                        eventTsMs: 1702590000000
+                        lat: 35.6762
+                        lon: 139.6503
+                        depth: 10.5
+                        mag: 5.2
+                        place: "10km E of Tokyo, Japan"
+                        detailUrl: "https://earthquake.usgs.gov/earthquakes/eventpage/us7000lxyz"
+                      - eventId: "us7000labc"
+                        eventTsMs: 1702580000000
+                        lat: -33.8688
+                        lon: 151.2093
+                        depth: 25.0
+                        mag: 4.8
+                        place: "Near Sydney, Australia"
+                        detailUrl: "https://earthquake.usgs.gov/earthquakes/eventpage/us7000labc"
+                    nextToken: "eyJ2IjoxLCJzdCI6MTcwMjAwMDAwMDAwMH0..."
+                lastPage:
+                  summary: Last page (no more results)
+                  value:
+                    items:
+                      - eventId: "us7000ldef"
+                        eventTsMs: 1702100000000
+                        lat: 40.7128
+                        lon: -74.006
+                        depth: 5.0
+                        mag: 4.5
+                        place: "Near New York, NY"
+                        detailUrl: "https://earthquake.usgs.gov/earthquakes/eventpage/us7000ldef"
+                empty:
+                  summary: No matching results
+                  value:
+                    items: []
+        "400":
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                missingParams:
+                  summary: Missing required parameters
+                  value:
+                    error: "VALIDATION_ERROR"
+                    message: "Missing required parameter: starttime"
+                invalidRange:
+                  summary: Invalid time range
+                  value:
+                    error: "VALIDATION_ERROR"
+                    message: "starttime must be less than endtime"
+                invalidToken:
+                  summary: Invalid pagination token
+                  value:
+                    error: "VALIDATION_ERROR"
+                    message: "Invalid or expired nextToken"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /analytics/popular-filters:
+    get:
+      operationId: getPopularFilters
+      summary: Get popular query filters
+      description: |
+        Retrieves analytics data showing the most popular query filter combinations
+        over a specified time window.
+
+        ## Use Cases
+
+        - Understand API usage patterns
+        - Identify common earthquake search criteria
+        - Monitor system load distribution
+        - Optimize caching strategies
+
+        ## Aggregation Logic
+
+        Request logs are aggregated by unique filter combinations:
+        - `starttime` (rounded to day)
+        - `endtime` (rounded to day)
+        - `minmagnitude`
+        - `pageSize`
+
+        Results are ordered by hit count (most popular first).
+      tags:
+        - Analytics
+      parameters:
+        - name: day
+          in: query
+          required: false
+          description: |
+            Reference day for the analytics window.
+            Format: `YYYY-MM-DD`
+            Defaults to today if not specified.
+          schema:
+            type: string
+            format: date
+            pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+          example: "2024-12-15"
+        - name: windowDays
+          in: query
+          required: false
+          description: |
+            Number of days to include in the analytics window.
+            The window extends backward from `day`.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 30
+            default: 7
+          example: 7
+        - name: limit
+          in: query
+          required: false
+          description: |
+            Maximum number of filter combinations to return.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          example: 10
+      responses:
+        "200":
+          description: Analytics data retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsResponse"
+              examples:
+                typical:
+                  summary: Typical analytics response
+                  value:
+                    window:
+                      startDay: "2024-12-08"
+                      endDay: "2024-12-15"
+                    filters:
+                      - starttime: 1702000000000
+                        endtime: 1702600000000
+                        minmagnitude: 4.5
+                        pageSize: 50
+                        hits: 142
+                        hasNextTokenCount: 89
+                        avgResultCount: 23.5
+                      - starttime: 1701900000000
+                        endtime: 1702500000000
+                        minmagnitude: 5.0
+                        pageSize: 25
+                        hits: 87
+                        hasNextTokenCount: 12
+                        avgResultCount: 8.2
+                    totalRequests: 1547
+                noData:
+                  summary: No request logs in window
+                  value:
+                    window:
+                      startDay: "2024-12-08"
+                      endDay: "2024-12-15"
+                    filters: []
+                    totalRequests: 0
+        "400":
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalidDate:
+                  summary: Invalid date format
+                  value:
+                    error: "VALIDATION_ERROR"
+                    message: "Invalid day format. Expected YYYY-MM-DD"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    IngestionResponse:
+      type: object
+      description: Response from the earthquake ingestion endpoint
+      required:
+        - fetched
+        - upserted
+        - skipped
+        - retries
+      properties:
+        fetched:
+          type: integer
+          minimum: 0
+          description: Total number of events fetched from USGS
+          example: 100
+        upserted:
+          type: integer
+          minimum: 0
+          description: Number of new events inserted into the database
+          example: 15
+        skipped:
+          type: integer
+          minimum: 0
+          description: Number of events skipped (already existed)
+          example: 85
+        retries:
+          type: integer
+          minimum: 0
+          description: Number of retry attempts made during ingestion
+          example: 0
+
+    EarthquakeEvent:
+      type: object
+      description: A single earthquake event record
+      required:
+        - eventId
+        - eventTsMs
+        - lat
+        - lon
+        - mag
+      properties:
+        eventId:
+          type: string
+          description: Unique identifier for the earthquake event (from USGS)
+          example: "us7000lxyz"
+        eventTsMs:
+          type: integer
+          format: int64
+          description: Event timestamp in milliseconds (Unix epoch)
+          example: 1702590000000
+        lat:
+          type: number
+          format: double
+          nullable: true
+          minimum: -90
+          maximum: 90
+          description: Latitude of the earthquake epicenter
+          example: 35.6762
+        lon:
+          type: number
+          format: double
+          nullable: true
+          minimum: -180
+          maximum: 180
+          description: Longitude of the earthquake epicenter
+          example: 139.6503
+        depth:
+          type: number
+          format: double
+          nullable: true
+          description: Depth of the earthquake in kilometers
+          example: 10.5
+        mag:
+          type: number
+          format: double
+          nullable: true
+          description: Magnitude of the earthquake (Richter scale)
+          example: 5.2
+        place:
+          type: string
+          nullable: true
+          description: Human-readable description of the earthquake location
+          example: "10km E of Tokyo, Japan"
+        detailUrl:
+          type: string
+          format: uri
+          nullable: true
+          description: URL to the USGS event detail page
+          example: "https://earthquake.usgs.gov/earthquakes/eventpage/us7000lxyz"
+
+    EarthquakeQueryResponse:
+      type: object
+      description: Response from the earthquake query endpoint
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          description: List of earthquake events matching the query criteria
+          items:
+            $ref: "#/components/schemas/EarthquakeEvent"
+          maxItems: 100
+        nextToken:
+          type: string
+          description: |
+            Pagination cursor for retrieving the next page of results.
+            Only present when more results are available.
+          example: "eyJ2IjoxLCJzdCI6MTcwMjAwMDAwMDAwMH0..."
+
+    FilterStats:
+      type: object
+      description: Statistics for a specific query filter combination
+      required:
+        - starttime
+        - endtime
+        - minmagnitude
+        - pageSize
+        - hits
+        - hasNextTokenCount
+        - avgResultCount
+      properties:
+        starttime:
+          type: integer
+          format: int64
+          description: Start time filter value (Unix timestamp in milliseconds)
+          example: 1702000000000
+        endtime:
+          type: integer
+          format: int64
+          description: End time filter value (Unix timestamp in milliseconds)
+          example: 1702600000000
+        minmagnitude:
+          type: number
+          format: double
+          description: Minimum magnitude filter value
+          example: 4.5
+        pageSize:
+          type: integer
+          description: Page size filter value
+          example: 50
+        hits:
+          type: integer
+          minimum: 0
+          description: Number of requests with this filter combination
+          example: 142
+        hasNextTokenCount:
+          type: integer
+          minimum: 0
+          description: Number of requests that had pagination (more results available)
+          example: 89
+        avgResultCount:
+          type: number
+          format: double
+          description: Average number of results returned per request
+          example: 23.5
+
+    AnalyticsResponse:
+      type: object
+      description: Response from the analytics popular-filters endpoint
+      required:
+        - window
+        - filters
+        - totalRequests
+      properties:
+        window:
+          type: object
+          description: Time window for the analytics data
+          required:
+            - startDay
+            - endDay
+          properties:
+            startDay:
+              type: string
+              format: date
+              description: Start of the analytics window (inclusive)
+              example: "2024-12-08"
+            endDay:
+              type: string
+              format: date
+              description: End of the analytics window (inclusive)
+              example: "2024-12-15"
+        filters:
+          type: array
+          description: List of popular filter combinations, ordered by hit count
+          items:
+            $ref: "#/components/schemas/FilterStats"
+          maxItems: 100
+        totalRequests:
+          type: integer
+          minimum: 0
+          description: Total number of requests in the analytics window
+          example: 1547
+
+    ErrorResponse:
+      type: object
+      description: Standard error response format
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code identifier
+          enum:
+            - VALIDATION_ERROR
+            - UPSTREAM_UNAVAILABLE
+            - DATABASE_UNAVAILABLE
+            - INTERNAL_ERROR
+            - INVALID_UPSTREAM_RESPONSE
+            - INFRASTRUCTURE_NOT_READY
+          example: "VALIDATION_ERROR"
+        message:
+          type: string
+          description: Human-readable error description
+          example: "Missing required parameter: starttime"
+        details:
+          type: object
+          additionalProperties: true
+          description: Additional error context (optional)
+          example:
+            field: "starttime"
+            constraint: "required"
+
+  examples:
+    EarthquakeEventExample:
+      summary: Typical earthquake event
+      value:
+        eventId: "us7000lxyz"
+        eventTsMs: 1702590000000
+        lat: 35.6762
+        lon: 139.6503
+        depth: 10.5
+        mag: 5.2
+        place: "10km E of Tokyo, Japan"
+        detailUrl: "https://earthquake.usgs.gov/earthquakes/eventpage/us7000lxyz"
+
+    MajorEarthquakeExample:
+      summary: Major earthquake (magnitude 7+)
+      value:
+        eventId: "us7000major"
+        eventTsMs: 1702500000000
+        lat: -4.9033
+        lon: 119.9042
+        depth: 35.0
+        mag: 7.4
+        place: "125km N of Makassar, Indonesia"
+        detailUrl: "https://earthquake.usgs.gov/earthquakes/eventpage/us7000major"
+
+    MinorEarthquakeExample:
+      summary: Minor earthquake (magnitude < 3)
+      value:
+        eventId: "ci40000001"
+        eventTsMs: 1702580000000
+        lat: 33.9425
+        lon: -117.9347
+        depth: 5.2
+        mag: 2.1
+        place: "5km SW of Riverside, CA"
+        detailUrl: "https://earthquake.usgs.gov/earthquakes/eventpage/ci40000001"

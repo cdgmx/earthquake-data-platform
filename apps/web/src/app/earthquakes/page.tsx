@@ -3,6 +3,7 @@ import type { ApiEarthquakeItem } from "@earthquake/schemas";
 import { headers } from "next/headers";
 import type { ReactNode } from "react";
 import { BackendFilterPanel } from "@/components/backend-filter-panel";
+import { DashboardLayout } from "@/components/dashboard";
 import { EarthquakeStatus } from "@/components/earthquake-status";
 import { EarthquakeDataTable } from "@/components/earthquakes/earthquake-data-table";
 import { PopularFilters } from "@/components/popular-filters";
@@ -145,13 +146,13 @@ export default async function EarthquakesPage({ searchParams }: PageProps) {
 	}
 
 	return (
-		<main className="min-h-screen bg-[hsl(var(--color-background))] py-12">
-			<div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-6 md:px-10">
-				<header className="space-y-2 text-center md:text-left">
-					<h1 className="text-4xl font-semibold tracking-tight">
-						Latest Earthquakes
+		<DashboardLayout>
+			<div className="space-y-6 p-6 lg:p-8">
+				<header className="space-y-2">
+					<h1 className="text-2xl font-bold tracking-tight">
+						Earthquake Explorer
 					</h1>
-					<p className="text-[hsl(var(--color-muted-foreground))]">
+					<p className="text-sm text-[hsl(var(--color-muted-foreground))]">
 						Query earthquake data from our backend API with custom filters,
 						sorting, and pagination.
 					</p>
@@ -171,6 +172,6 @@ export default async function EarthquakesPage({ searchParams }: PageProps) {
 					<CardContent>{cardContent}</CardContent>
 				</Card>
 			</div>
-		</main>
+		</DashboardLayout>
 	);
 }

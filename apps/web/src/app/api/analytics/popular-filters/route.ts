@@ -12,7 +12,7 @@ import { NextResponse } from "next/server";
 
 const BACKEND_URL =
 	process.env.BACKEND_API_URL ||
-	"http://localhost:4566/restapis/lmezxot3xt/local/_user_request_";
+	"http://localhost:4566/restapis/vkvolnfkbk/local/_user_request_";
 
 type ResponseBody = AnalyticsResponse | ApiError;
 
