@@ -214,8 +214,12 @@ async function report() {
 				console.log(`  - ${name} (${version})`);
 			}
 			pkgJson.dependencies = Object.fromEntries(retainedDeps);
-			fs.writeFileSync(standalonePackageJson, `${JSON.stringify(pkgJson, null, 2)}\n`, "utf-8");
 		}
+
+		// npm resolves devDependencies even with --omit=dev. Keep the runtime
+		// manifest free of build/test tooling before resolving production packages.
+		delete pkgJson.devDependencies;
+		fs.writeFileSync(standalonePackageJson, `${JSON.stringify(pkgJson, null, 2)}\n`, "utf-8");
 
 		const standaloneNodeModules = path.join(standaloneRoot, "node_modules");
 		if (fs.existsSync(standaloneNodeModules)) {
