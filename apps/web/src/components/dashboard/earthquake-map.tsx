@@ -1,8 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import maplibregl from "maplibre-gl";
 import type { FeatureCollection } from "geojson";
+import * as maplibregl from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { ApiEarthquakeItem } from "@earthquake/schemas";
@@ -228,9 +228,9 @@ export function EarthquakeMap({
 
 	useEffect(() => {
 		if (!isMapReady || !mapRef.current) return;
-		const source = mapRef.current.getSource(
-			EARTHQUAKE_SOURCE_ID,
-		) as maplibregl.GeoJSONSource | undefined;
+		const source = mapRef.current.getSource(EARTHQUAKE_SOURCE_ID) as
+			| maplibregl.GeoJSONSource
+			| undefined;
 		if (source) {
 			source.setData(featureCollection);
 		}
